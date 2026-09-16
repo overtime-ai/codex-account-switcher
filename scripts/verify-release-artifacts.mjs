@@ -2,7 +2,6 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import { validateMacFeed } from './prepare-macos-feed.mjs';
 
 export async function verifyReleaseArtifacts(directory, tag) {
   if (!/^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(tag)) throw new Error('Expected a unified release tag.');
@@ -15,14 +14,9 @@ export async function verifyReleaseArtifacts(directory, tag) {
       throw new Error(`Checksum mismatch: ${name}`);
     }
   }
-  const xml = await fs.readFile(path.join(directory, 'appcast.xml'), 'utf8');
-  validateMacFeed(xml, tag);
-  if (!xml.includes(`<sparkle:shortVersionString>${tag.slice(1)}</sparkle:shortVersionString>`)) {
-    throw new Error('The update feed version differs from the release tag.');
-  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await verifyReleaseArtifacts(process.argv[2], process.argv[3]);
-  console.log('Both platform packages, checksums and the macOS feed are ready.');
+  console.log('Both platform packages and checksums are ready.');
 }

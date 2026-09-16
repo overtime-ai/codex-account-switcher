@@ -1,3 +1,5 @@
+> **Overtime fork:** Application update checks, downloads, installation, notifications, and controls have been removed on both macOS and Windows. This fork does not contact the upstream update service. Account login and usage refresh through Codex still work. Build from this repository; upstream binaries do not contain these changes. See [fork maintenance](docs/overtime-fork.md).
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/account-switcher-logo-white.png">
@@ -13,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
   <img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-171513?logo=apple&logoColor=white">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-171513">
   <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-171513">
@@ -21,8 +23,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>Download free for Mac</b></a> ·
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>Download free for Windows</b></a> ·
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>Download free for Mac</b></a> ·
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>Download free for Windows</b></a> ·
   <a href="https://liuzhao1225.github.io/codex-account-switcher/"><b>Website</b></a> ·
   <a href="https://github.com/liuzhao1225/codex-account-switcher/discussions"><b>Discussions</b></a>
 </p>
@@ -60,12 +62,12 @@ OpenAI's official account switcher currently applies to ChatGPT on the web and [
 
 ## Download
 
-[Latest version v0.1.12](https://github.com/liuzhao1225/codex-account-switcher/releases/latest) includes both macOS and Windows packages with SHA-256 checksums.
+[Latest version v0.1.12](https://github.com/overtime-ai/codex-account-switcher/releases/latest) includes both macOS and Windows packages with SHA-256 checksums.
 
 | Platform | Requirements | Download and install |
 | --- | --- | --- |
-| macOS | macOS 14+, Apple Silicon (arm64) | [Download DMG](https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg), open it, and drag the app to Applications |
-| Windows | Windows 10/11, x64 | [Download EXE](https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe) and run it; no separate .NET or Swift SDK required |
+| macOS | macOS 14+, Apple Silicon (arm64) | [Download DMG](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg), open it, and drag the app to Applications |
+| Windows | Windows 10/11, x64 | [Download EXE](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe) and run it; no separate .NET or Swift SDK required |
 
 macOS uses the menu bar; the app and DMG are signed and Apple-notarized. Windows uses a native window and a system-tray entry point; its EXE is currently unsigned. Closing the Windows window hides it; use the tray to reopen it.
 
@@ -118,19 +120,19 @@ macOS and Windows share one version and **`v<version>`** tag. Every release rebu
 
 | Platform | Package | Updates |
 | --- | --- | --- |
-| macOS | Signed, notarized DMG and SHA-256 checksum | Sparkle checks, downloads, and installs updates |
-| Windows | Portable EXE and SHA-256 checksum; EXE currently unsigned | Checks for a new version and opens its download page for manual replacement |
+| macOS | Signed, notarized DMG and SHA-256 checksum | Manual replacement only; no in-app updater |
+| Windows | Portable EXE and SHA-256 checksum; EXE currently unsigned | Manual replacement only; no in-app updater |
 
 Every Release includes both platform downloads, uses the version as its title, and lists only changes in its notes. See [release management](docs/platform-releases.md) and [Windows development](windows/README.md).
 
 ## Development
 
-<a href="https://github.com/liuzhao1225/codex-account-switcher/actions/workflows/release.yml"><img alt="Release workflow" src="https://github.com/liuzhao1225/codex-account-switcher/actions/workflows/release.yml/badge.svg"></a>
+<a href="https://github.com/overtime-ai/codex-account-switcher/actions/workflows/release.yml"><img alt="Release workflow" src="https://github.com/overtime-ai/codex-account-switcher/actions/workflows/release.yml/badge.svg"></a>
 
 Both apps share a Swift 6.2 account core, with native SwiftUI on macOS and WPF on Windows. The commands below build macOS; see [Windows development](windows/README.md) for Windows.
 
 ```bash
-git clone https://github.com/liuzhao1225/codex-account-switcher.git
+git clone https://github.com/overtime-ai/codex-account-switcher.git
 cd codex-account-switcher
 swift build
 swift test
@@ -149,7 +151,7 @@ The bundle is written to `.build/release/Codex Account Switcher.app`.
 
 Push a matching `v*` tag from a tested main commit to publish. The version in `CITATION.cff`, the Mac packaging default, the Codex client, and `windows/Directory.Build.props` must agree. Ordinary main pushes run CI only.
 
-GitHub Actions tests and packages both platforms from the same tag. The publish job waits for both, verifies checksums and the signed Mac feed, uploads the DMG and EXE to a draft, then publishes one Latest release. macOS retains Developer ID signing, Apple notarization and Sparkle updates. Release notes list only changes. See [release management](docs/platform-releases.md).
+GitHub Actions tests and packages both platforms from the same tag. The publish job waits for both, verifies checksums, uploads the DMG and EXE to a draft, then publishes one Latest release. macOS retains Developer ID signing, Apple notarization (after fork signing secrets are configured). Release notes list only changes. See [release management](docs/platform-releases.md).
 
 ### Project map
 
@@ -223,10 +225,6 @@ Codex Account Switcher is released under the [MIT License](LICENSE).
 
 ## Updates
 
-macOS checks hourly through Sparkle. A blue menu-bar dot and an update row above the popover footer indicate a new version; clicking Update starts the framework’s download, installation, and Switcher relaunch flow. Settings provides a manual check and automatic-check toggle. Account operations defer the final relaunch.
+Updates are managed manually in this fork. Neither platform checks for new versions, downloads updates, or installs them. The Mac build contains no Sparkle framework or update-feed configuration. Windows has no update HTTP client or timer. Old automatic-update preferences are ignored because the updater code has been removed.
 
-Publishing requires the `SPARKLE_PRIVATE_KEY` repository secret and a signed `appcast.xml` release asset. The installed 0.1.6 has no updater and needs one manual upgrade. The release workflow publishes the signed update feed alongside the notarized DMG.
-
-See the [whole-project ablation report](docs/project-ablation-2026-09-05.md) for retained mechanisms, repairs, and open design gaps.
-
-Windows checks the unified Release for a new version and opens its download page; download and replace the EXE manually. Windows 0.1.11 preview users need one manual upgrade to 0.1.12.
+No release binaries were produced as part of the fork change. Build from this source, or use a future release published by `overtime-ai`. Installing an upstream release restores upstream update behavior.

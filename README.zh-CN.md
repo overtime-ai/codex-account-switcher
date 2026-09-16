@@ -1,3 +1,5 @@
+> **Overtime 分支：** macOS 和 Windows 的应用更新检查、下载、安装、通知和相关设置均已移除。本分支不会连接上游更新服务；Codex 账号登录与用量刷新保持可用。请从本仓库构建，上游安装包不包含这些修改。详见[分支维护说明](docs/overtime-fork.md)。
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/account-switcher-logo-white.png">
@@ -13,7 +15,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
   <img alt="macOS 14 或更高版本" src="https://img.shields.io/badge/macOS-14%2B-171513?logo=apple&logoColor=white">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-171513">
   <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-171513">
@@ -21,8 +23,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>免费下载 Mac 版</b></a> ·
-  <a href="https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>免费下载 Windows 版</b></a> ·
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>免费下载 Mac 版</b></a> ·
+  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>免费下载 Windows 版</b></a> ·
   <a href="https://liuzhao1225.github.io/codex-account-switcher/zh-CN/"><b>网站</b></a> ·
   <a href="https://github.com/liuzhao1225/codex-account-switcher/discussions"><b>讨论区</b></a>
 </p>
@@ -60,12 +62,12 @@ OpenAI 官方账号切换功能当前适用于 ChatGPT 网页端，并且[尚未
 
 ## 下载
 
-[最新版本 v0.1.12](https://github.com/liuzhao1225/codex-account-switcher/releases/latest) 同时提供 macOS 和 Windows 安装包及 SHA-256 校验文件。
+[最新版本 v0.1.12](https://github.com/overtime-ai/codex-account-switcher/releases/latest) 同时提供 macOS 和 Windows 安装包及 SHA-256 校验文件。
 
 | 平台 | 系统要求 | 下载与安装 |
 | --- | --- | --- |
-| macOS | macOS 14+，Apple Silicon（arm64） | [下载 DMG](https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg)，打开后将应用拖入“应用程序” |
-| Windows | Windows 10/11，x64 | [下载 EXE](https://github.com/liuzhao1225/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe)，直接运行，无需另装 .NET 或 Swift SDK |
+| macOS | macOS 14+，Apple Silicon（arm64） | [下载 DMG](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg)，打开后将应用拖入“应用程序” |
+| Windows | Windows 10/11，x64 | 仅手动替换，无应用内更新器 |
 
 macOS 使用菜单栏界面，应用与 DMG 均已签名并通过 Apple 公证。Windows 使用原生窗口和系统托盘入口，EXE 当前尚未签名；关闭窗口后可从托盘重新打开。
 
@@ -118,19 +120,19 @@ macOS 与 Windows 使用统一版本号和 **`v<版本号>`** tag。每次从同
 
 | 平台 | 安装包 | 更新方式 |
 | --- | --- | --- |
-| macOS | 已签名、公证的 DMG 与 SHA-256 校验文件 | Sparkle 检查、下载并安装更新 |
-| Windows | 免安装 EXE 与 SHA-256 校验文件，EXE 尚未签名 | 检查新版本并打开下载页，手动替换 EXE |
+| macOS | 已签名、公证的 DMG 与 SHA-256 校验文件 | 仅手动替换，无应用内更新器 |
+| Windows | 免安装 EXE 与 SHA-256 校验文件，EXE 尚未签名 | 仅手动替换，无应用内更新器 |
 
 每个 Release 都提供完整的双平台下载，标题直接显示版本号，说明只记录本次改动。详见[发布管理](docs/platform-releases.md)与 [Windows 开发文档](windows/README.md)。
 
 ## 开发
 
-<a href="https://github.com/liuzhao1225/codex-account-switcher/actions/workflows/release.yml"><img alt="Release workflow" src="https://github.com/liuzhao1225/codex-account-switcher/actions/workflows/release.yml/badge.svg"></a>
+<a href="https://github.com/overtime-ai/codex-account-switcher/actions/workflows/release.yml"><img alt="Release workflow" src="https://github.com/overtime-ai/codex-account-switcher/actions/workflows/release.yml/badge.svg"></a>
 
 两端共享 Swift 6.2 账号核心，分别使用 macOS SwiftUI 和 Windows WPF 原生界面。以下为 macOS 构建步骤；Windows 步骤见 [Windows 开发文档](windows/README.md)。
 
 ```bash
-git clone https://github.com/liuzhao1225/codex-account-switcher.git
+git clone https://github.com/overtime-ai/codex-account-switcher.git
 cd codex-account-switcher
 swift build
 swift test
@@ -149,7 +151,7 @@ swift test
 
 从已通过测试的 main 提交推送匹配的 `v*` tag 后发布。`CITATION.cff`、Mac 打包默认版本、Codex 客户端和 `windows/Directory.Build.props` 的版本必须一致。普通 main push 只运行 CI。
 
-GitHub Actions 从同一个 tag 分别测试、打包两端。汇总任务等待双方成功，核对校验文件和 Mac 签名更新源，将 DMG、EXE 上传到草稿后一次公开为 Latest。macOS 保留 Developer ID 签名、Apple 公证和 Sparkle 更新。Release notes 只写本次改动。详见[发布管理](docs/platform-releases.md)。
+GitHub Actions 从同一个 tag 分别测试、打包两端。汇总任务等待双方成功，核对校验文件，将 DMG、EXE 上传到草稿后一次公开为 Latest。macOS 保留 Developer ID 签名、Apple 公证（需为分支配置签名密钥）。Release notes 只写本次改动。详见[发布管理](docs/platform-releases.md)。
 
 ### 项目结构
 
@@ -223,10 +225,6 @@ Codex Account Switcher 基于 [MIT License](LICENSE) 发布。
 
 ## 更新方式
 
-macOS 通过 Sparkle 每小时检查更新。菜单栏蓝点和主页底部工具栏上方的更新行提示新版本；点击更新后，由框架下载、安装并重启 Switcher。设置页提供手动检查和自动检查开关。账号操作进行中会延后最终重启。
+本分支仅支持手动更新。两端均不检查新版本、不下载更新，也不安装更新。macOS 已移除 Sparkle 及更新源配置；Windows 已移除更新网络请求与计时器。旧更新设置不会重新启用该功能。
 
-发布前需要配置仓库 `SPARKLE_PRIVATE_KEY`，并上传带签名的 `appcast.xml`。已安装的 0.1.6 没有更新器，需要先手动升级一次。发布流程将带签名的更新源与公证 DMG 一同上传。
-
-保留机制、修复及仍存在的设计缺口见[全项目消融报告](docs/project-ablation-2026-09-05.md)。
-
-Windows 支持检查统一 Release 中的新版本，并打开下载页，由用户下载和替换 EXE。Windows 0.1.11 预览版用户需先手动升级一次到 0.1.12。
+本次分支修改未生成发布安装包。请从本仓库构建，或使用未来由 `overtime-ai` 发布的版本；安装上游版本会恢复上游更新行为。

@@ -205,25 +205,6 @@ jobs:
           )
           cat "$artifact.sha256"
 
-      - name: Sign the Sparkle update feed
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-          test -n "$SPARKLE_PRIVATE_KEY"
-          key_file="$RUNNER_TEMP/sparkle-private-key"
-          trap 'rm -f "$key_file"' EXIT
-          umask 077
-          printf '%s' "$SPARKLE_PRIVATE_KEY" > "$key_file"
-          .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
-            --ed-key-file "$key_file" \
-            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/" \
-            --full-release-notes-url "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${RELEASE_TAG}" \
-            --maximum-deltas 0 \
-            -o .build/artifacts/appcast.xml \
-            .build/artifacts
-          test -s .build/artifacts/appcast.xml
-
       - name: Upload verified macOS artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -231,7 +212,6 @@ jobs:
           path: |
             .build/artifacts/Codex-Account-Switcher-macos-arm64.dmg
             .build/artifacts/Codex-Account-Switcher-macos-arm64.dmg.sha256
-            .build/artifacts/appcast.xml
           if-no-files-found: error
 
   publish:
@@ -257,7 +237,6 @@ jobs:
             dist/Codex-Account-Switcher-macos-arm64.dmg.sha256 \
             dist/Codex-Account-Switcher-windows-x64.exe \
             dist/Codex-Account-Switcher-windows-x64.exe.sha256 \
-            dist/appcast.xml \
             --title "$GITHUB_REF_NAME" --notes-file .github/release-notes.md \
             --draft --verify-tag
           gh release edit "$GITHUB_REF_NAME" --draft=false --latest

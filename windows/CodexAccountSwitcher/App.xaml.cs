@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
 using CodexAccountSwitcher.Core;
 using Microsoft.Win32;
 using Forms = System.Windows.Forms;
@@ -33,7 +32,6 @@ public partial class App : Application
     private System.Drawing.Size trayIconSize;
     private CoreClient? client;
     private MainWindow? window;
-    private DispatcherTimer? updates;
     private bool exiting;
 
     protected override async void OnStartup(StartupEventArgs e)
@@ -73,10 +71,6 @@ public partial class App : Application
             client.Changed += RefreshTray;
             await client.InitializeAsync(native.Version);
             if (!e.Args.Contains("--background")) window.OpenWindow();
-            updates = new DispatcherTimer { Interval = TimeSpan.FromHours(1) };
-            updates.Tick += async (_, _) => { if (native.AutomaticallyCheckUpdates) await native.CheckUpdatesAsync(); };
-            updates.Start();
-            if (native.AutomaticallyCheckUpdates) _ = native.CheckUpdatesAsync();
         } catch (Exception ex) {
             MessageBox.Show(ex.Message, "Codex Account Switcher", MessageBoxButton.OK, MessageBoxImage.Error);
             await QuitAsync();
@@ -126,7 +120,7 @@ public partial class App : Application
     }
     private async Task QuitAsync() {
         if (exiting || window?.IsBusy == true) return;
-        exiting = true; updates?.Stop();
+        exiting = true;
         activationListener?.Unregister(null);
         if (client != null) { client.Changed -= RefreshTray; await client.DisposeAsync(); }
         window?.CloseForExit();

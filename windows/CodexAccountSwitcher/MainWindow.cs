@@ -35,14 +35,14 @@ public sealed class MainWindow : Window
         Background = B("Surface"); ShowInTaskbar = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         MaxHeight = SystemParameters.WorkArea.Height - 24;
-        client.Changed += Render; this.native.Changed += Render;
+        client.Changed += Render;
         PreviewKeyDown += (_, e) => { if (e.Key == Key.Escape && !IsBusy && page != "accounts") { Navigate("accounts"); e.Handled = true; } };
         Closing += (_, e) => {
             if (closingForExit) return;
             e.Cancel = true;
             Hide();
         };
-        Closed += (_, _) => { client.Changed -= Render; this.native.Changed -= Render; };
+        Closed += (_, _) => { client.Changed -= Render; };
         Render();
     }
 
@@ -95,13 +95,6 @@ public sealed class MainWindow : Window
             var settings = Button("", () => Navigate("settings"), "\uE713");
             settings.Margin = new Thickness(8, 0, 0, 0); settings.ToolTip = T("settings");
             AutomationProperties.SetName(settings, T("settings"));
-            if (native.UpdatePage != null) {
-                var glyph = (UIElement)settings.Content; settings.Content = null;
-                var indicator = new Grid(); indicator.Children.Add(glyph);
-                indicator.Children.Add(new System.Windows.Shapes.Ellipse { Width = 5, Height = 5, Fill = B("Accent"),
-                    HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, -3, -4, 0) });
-                settings.Content = indicator;
-            }
             commands.Children.Add(settings);
             var heading = Pair(Text(T("accounts"), 20, bold: true), commands);
             heading.Margin = new Thickness(20, 16, 20, 16); body.Children.Add(heading);
@@ -227,10 +220,8 @@ public sealed class MainWindow : Window
         var language = new ComboBox { Width = 160, VerticalAlignment = VerticalAlignment.Center, ItemsSource = new[] { T("system_default"), T("english"), T("simplified_chinese") }, SelectedIndex = Array.IndexOf(languages, State.Settings.Language) };
         language.SelectionChanged += (_, _) => { if (language.SelectedIndex >= 0) _ = Run("language", language: languages[language.SelectedIndex]); };
         var languageRow = Pair(Text(T("language")), language); languageRow.Height = 48; settings.Children.Add(languageRow);
-        var heading = Text(T("settings_updates"), 14, bold: true); heading.Margin = new Thickness(0, 20, 0, 0); settings.Children.Add(heading);
-        Toggle(T("automatically_check_updates"), native.AutomaticallyCheckUpdates, value => native.AutomaticallyCheckUpdates = value);
-        var hint = Text(T(native.UpdateError ?? "update_check_hint"), 10.5, muted: true); hint.Margin = new Thickness(0, 0, 0, 12); hint.TextWrapping = TextWrapping.Wrap; settings.Children.Add(hint); settings.Children.Add(Rule());
-        var check = Button(T(native.UpdatePage == null ? "check_for_updates" : "update_action"), async () => { if (native.UpdatePage != null) native.OpenUpdate(); else await native.CheckUpdatesAsync(); }); check.IsEnabled = !native.IsChecking;
-        var version = Pair(Text(T("current_version").Replace("%@", native.Version), 12), check); version.Margin = new Thickness(0, 12, 0, 0); settings.Children.Add(version); body.Children.Add(settings);
+        settings.Children.Add(Rule());
+        var version = Text(T("current_version").Replace("%@", native.Version), 12);
+        version.Margin = new Thickness(0, 12, 0, 0); settings.Children.Add(version); body.Children.Add(settings);
     }
 }
