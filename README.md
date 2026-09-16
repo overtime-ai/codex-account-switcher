@@ -15,7 +15,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
   <img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-171513?logo=apple&logoColor=white">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-171513">
   <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-171513">
@@ -23,8 +22,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>Download free for Mac</b></a> ·
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>Download free for Windows</b></a> ·
+  <a href="#development"><b>Build for Mac</b></a> ·
+  <a href="windows/README.md"><b>Build for Windows</b></a> ·
   <a href="https://liuzhao1225.github.io/codex-account-switcher/"><b>Website</b></a> ·
   <a href="https://github.com/liuzhao1225/codex-account-switcher/discussions"><b>Discussions</b></a>
 </p>
@@ -36,7 +35,7 @@
 ![Native macOS Codex Account Switcher showing three fictional Codex profiles, usage, and account switching from the menu bar](assets/codex-account-switcher-hero.png)
 
 <p align="center">
-  <a href="#download">Installation</a> &nbsp; / &nbsp;
+  <a href="#build-and-install">Installation</a> &nbsp; / &nbsp;
   <a href="#features">Features</a> &nbsp; / &nbsp;
   <a href="#frequently-asked-questions">FAQ</a> &nbsp; / &nbsp;
   <a href="#development">Development</a>
@@ -60,18 +59,11 @@ OpenAI's official account switcher currently applies to ChatGPT on the web and [
 - **Freelancers and consultants:** keep authorized client accounts together and choose the correct identity before starting work.
 - **Desktop users who prefer visible controls:** use a normal app workflow with visible account selection and confirmation instead of scripts or hidden automatic rotation.
 
-## Download
+## Build and install
 
-[Latest version v0.1.12](https://github.com/overtime-ai/codex-account-switcher/releases/latest) includes both macOS and Windows packages with SHA-256 checksums.
+This fork is based on upstream v0.1.12 and has no published release binaries yet. Build the Mac application using the [development instructions](#development), or follow the [Windows build instructions](windows/README.md). Upstream downloads include the updater removed here.
 
-| Platform | Requirements | Download and install |
-| --- | --- | --- |
-| macOS | macOS 14+, Apple Silicon (arm64) | [Download DMG](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg), open it, and drag the app to Applications |
-| Windows | Windows 10/11, x64 | [Download EXE](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe) and run it; no separate .NET or Swift SDK required |
-
-macOS uses the menu bar; the app and DMG are signed and Apple-notarized. Windows uses a native window and a system-tray entry point; its EXE is currently unsigned. Closing the Windows window hides it; use the tray to reopen it.
-
-Launch the app, add accounts through browser sign-in, then select and confirm a switch. Both platforms need an available Codex runtime and must use the same active Codex home as Codex Desktop.
+macOS requires macOS 14+ and Apple Silicon. Windows requires Windows 10/11 x64. Both platforms need an available Codex runtime and must use the same active Codex home as Codex Desktop.
 
 ## Features
 
@@ -115,6 +107,8 @@ Comparisons with other account switchers are welcome. Please describe the workfl
 - General rollback state machines, retries, credential backup files, recovery journals, startup recovery, and policy-based routing stay outside the product scope.
 
 ## Release status
+
+This fork has no published release binaries yet. The table describes release workflow outputs; Mac signing and notarization require this repository's own credentials.
 
 macOS and Windows share one version and **`v<version>`** tag. Every release rebuilds, tests, and packages both platforms from the same commit, then publishes once both pass. The current MVP reuses neither older packages nor build caches across runs.
 

@@ -15,7 +15,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases"><img alt="Release" src="https://img.shields.io/github/v/release/liuzhao1225/codex-account-switcher?sort=semver&label=release&color=2563eb"></a>
   <img alt="macOS 14 或更高版本" src="https://img.shields.io/badge/macOS-14%2B-171513?logo=apple&logoColor=white">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-171513">
   <img alt="Windows 10/11 x64" src="https://img.shields.io/badge/Windows-10%2F11%20x64-171513">
@@ -23,8 +22,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg"><b>免费下载 Mac 版</b></a> ·
-  <a href="https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-windows-x64.exe"><b>免费下载 Windows 版</b></a> ·
+  <a href="#开发"><b>构建 Mac 版</b></a> ·
+  <a href="windows/README.md"><b>构建 Windows 版</b></a> ·
   <a href="https://liuzhao1225.github.io/codex-account-switcher/zh-CN/"><b>网站</b></a> ·
   <a href="https://github.com/liuzhao1225/codex-account-switcher/discussions"><b>讨论区</b></a>
 </p>
@@ -36,7 +35,7 @@
 ![原生 macOS Codex Account Switcher 在菜单栏中展示三个虚构 Codex 账号、用量和账号切换功能](assets/codex-account-switcher-hero.zh-CN.png)
 
 <p align="center">
-  <a href="#下载">安装说明</a> &nbsp; / &nbsp;
+  <a href="#构建与安装">安装说明</a> &nbsp; / &nbsp;
   <a href="#功能">功能</a> &nbsp; / &nbsp;
   <a href="#常见问题">常见问题</a> &nbsp; / &nbsp;
   <a href="#开发">开发</a>
@@ -60,18 +59,11 @@ OpenAI 官方账号切换功能当前适用于 ChatGPT 网页端，并且[尚未
 - **自由职业者与顾问：** 集中管理获准使用的客户账号，开始工作前选择正确身份。
 - **偏好清晰可见操作的桌面用户：** 在 macOS 菜单栏或 Windows 原生窗口中选择并确认，避开脚本和后台静默轮换。
 
-## 下载
+## 构建与安装
 
-[最新版本 v0.1.12](https://github.com/overtime-ai/codex-account-switcher/releases/latest) 同时提供 macOS 和 Windows 安装包及 SHA-256 校验文件。
+本分支基于上游 v0.1.12，目前没有已发布的安装包。请按[开发说明](#开发)构建 macOS 应用，或参考 [Windows 构建说明](windows/README.md)。上游安装包仍包含本分支已移除的更新器。
 
-| 平台 | 系统要求 | 下载与安装 |
-| --- | --- | --- |
-| macOS | macOS 14+，Apple Silicon（arm64） | [下载 DMG](https://github.com/overtime-ai/codex-account-switcher/releases/latest/download/Codex-Account-Switcher-macos-arm64.dmg)，打开后将应用拖入“应用程序” |
-| Windows | Windows 10/11，x64 | 仅手动替换，无应用内更新器 |
-
-macOS 使用菜单栏界面，应用与 DMG 均已签名并通过 Apple 公证。Windows 使用原生窗口和系统托盘入口，EXE 当前尚未签名；关闭窗口后可从托盘重新打开。
-
-启动后，通过浏览器添加账号，再选择并确认切换。两端都需要可用的 Codex 运行时，与 Codex Desktop 使用同一个活动 Codex 目录。
+macOS 需要 macOS 14+ 和 Apple Silicon；Windows 需要 Windows 10/11 x64。两端均需要可用的 Codex 运行时，并与 Codex Desktop 使用同一个活动 Codex home。
 
 ## 功能
 
@@ -115,6 +107,8 @@ macOS 使用菜单栏界面，应用与 DMG 均已签名并通过 Apple 公证�
 - 通用回滚状态机、重试、凭证备份文件、恢复日志、启动恢复和策略化账号路由仍不在产品范围内。
 
 ## 发布状态
+
+本分支尚未发布安装包。下表描述发布工作流的输出；macOS 签名与公证需要在本仓库配置自己的凭证。
 
 macOS 与 Windows 使用统一版本号和 **`v<版本号>`** tag。每次从同一提交重新编译、测试并打包两端，全部通过后统一发布。当前 MVP 不复用上版安装包，不启用跨次构建缓存。
 
