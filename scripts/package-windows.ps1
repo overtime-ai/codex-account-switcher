@@ -7,8 +7,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $windowsRoot = Join-Path $projectRoot 'windows'
-$macLockPath = Join-Path $projectRoot 'Package.resolved'
-$macLockBytes = if (Test-Path -LiteralPath $macLockPath) { [IO.File]::ReadAllBytes($macLockPath) } else { $null }
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $windowsRoot 'artifacts' }
 $artifactRoot = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
@@ -59,9 +57,6 @@ try {
     [IO.File]::WriteAllText($artifact + '.sha256', "$hash  $filename`n", [Text.UTF8Encoding]::new($false))
     Write-Output $artifact
 } finally {
-    # SwiftPM removes a lockfile when this platform has no external package dependencies.
-    # Keep the existing macOS Sparkle pin intact in a shared working tree.
-    if ($null -ne $macLockBytes) { [IO.File]::WriteAllBytes($macLockPath, $macLockBytes) }
     $expectedRoot = $artifactRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
     foreach ($directory in @($staging, $runtimeStaging)) {
         $resolvedStaging = [IO.Path]::GetFullPath($directory)

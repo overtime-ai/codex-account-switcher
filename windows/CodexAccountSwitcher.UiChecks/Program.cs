@@ -18,24 +18,6 @@ internal static class Program
     {
         var output = Path.GetFullPath(args.FirstOrDefault() ?? Path.Combine("windows", "artifacts", "ui"));
         try {
-            using var releases = System.Text.Json.JsonDocument.Parse("""
-                [
-                  {"tag_name":"macos-v99.0.0","draft":false,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"windows-v99.0.0","draft":false,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"v9.0.0","draft":true,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"v8.0.0","draft":false,"prerelease":true,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"v7.0.0","draft":false,"assets":[]},
-                  {"tag_name":"v06.0.0","draft":false,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"v0.1.9","draft":false,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]},
-                  {"tag_name":"v0.1.12","draft":false,"assets":[{"name":"Codex-Account-Switcher-windows-x64.exe"}]}
-                ]
-                """);
-            Assert(NativeSettings.LatestWindowsVersion(releases.RootElement) == new Version(0, 1, 12),
-                "Updates must select stable unified releases with a Windows EXE, ordered by version.");
-            using var macOnly = System.Text.Json.JsonDocument.Parse("""
-                [{"tag_name":"v99.0.0","draft":false,"assets":[{"name":"Codex-Account-Switcher-macos-arm64.dmg"}]}]
-                """);
-            Assert(NativeSettings.LatestWindowsVersion(macOnly.RootElement) == null, "A release without a Windows EXE must never prompt a Windows update.");
             Directory.CreateDirectory(output);
             var app = new App(false); app.InitializeComponent();
             var client = new FixtureClient();
@@ -87,7 +69,7 @@ internal static class Program
             Assert(All<TextBlock>(window).Count(text => text.Text == "当前") == 1, "Manage identifies the active account.");
             Assert(!All<TextBox>(window).Any(), "Account management must not add a rename workflow.");
             window.Navigate("settings"); Render(window, Path.Combine(output, "settings-zh.png"));
-            Assert(All<CheckBox>(window).Count() == 4, "Settings requires the four reference toggles.");
+            Assert(All<CheckBox>(window).Count() == 3, "Settings retains login and usage toggles without an update toggle.");
             var fiveHour = All<CheckBox>(window).Single(toggle => System.Windows.Automation.AutomationProperties.GetName(toggle) == "显示 5 小时用量");
             fiveHour.IsChecked = true; fiveHour.RaiseEvent(new RoutedEventArgs(CheckBox.ClickEvent));
             Assert(client.Commands.Single() == "fiveHour:True", "Settings must save immediately.");
@@ -143,11 +125,10 @@ internal static class Program
                 ["usage"] = "用量", ["resets"] = "重置于", ["left"] = "% 剩余", ["manage"] = "管理账号", ["settings"] = "设置", ["quit"] = "退出应用",
                 ["accounts"] = "账号", ["back"] = "返回", ["active"] = "当前", ["remove"] = "移除", ["add_account"] = "添加账号",
                 ["sign_in_hint"] = "将打开浏览器进行 Codex 登录。", ["register_current_account"] = "登记当前登录账号",
-                ["settings_general"] = "通用", ["settings_updates"] = "软件更新", ["launch_at_login"] = "登录时自动启动",
+                ["settings_general"] = "通用", ["launch_at_login"] = "登录时自动启动",
                 ["show_menu_bar_percentage"] = "在菜单栏显示百分比", ["show_five_hour_usage"] = "显示 5 小时用量", ["language"] = "语言",
                 ["system_default"] = "跟随系统", ["english"] = "English", ["simplified_chinese"] = "简体中文", ["five_hour"] = "5 小时", ["weekly"] = "7 天",
-                ["automatically_check_updates"] = "自动检查更新", ["update_check_hint"] = "每小时检查一次，有新版本时显示蓝点。",
-                ["current_version"] = "当前版本 %@", ["check_for_updates"] = "检查更新", ["cancel"] = "取消", ["switch"] = "切换账号",
+                ["current_version"] = "当前版本 %@", ["cancel"] = "取消", ["switch"] = "切换账号",
                 ["switch_title"] = "切换到 %@？", ["switch_body"] = "Codex Desktop 将关闭并重新打开。请先完成或停止正在运行的 Desktop 任务。如果 Desktop 显示退出提示，请处理该提示；无法正常退出时会停止切换。现有 CLI 会话保持运行，新 CLI 会话将使用所选账号。"
             });
         }

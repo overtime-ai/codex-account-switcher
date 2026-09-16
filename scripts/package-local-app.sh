@@ -21,12 +21,10 @@ APP_DIR="$BUILD_DIR/Codex Account Switcher.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
-FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 
 rm -rf "$APP_DIR"
 
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
-ditto "$BUILD_DIR/Sparkle.framework" "$FRAMEWORKS_DIR/Sparkle.framework"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$BUILD_DIR/CodexAccountSwitcher" "$MACOS_DIR/CodexAccountSwitcher"
 chmod 0755 "$MACOS_DIR/CodexAccountSwitcher"
 ditto "$BUILD_DIR/$RESOURCE_BUNDLE" "$RESOURCES_DIR/$RESOURCE_BUNDLE"
@@ -47,30 +45,6 @@ cp "$PROJECT_DIR/LICENSE" "$RESOURCES_DIR/LICENSE.txt"
 /usr/bin/plutil -insert LSMinimumSystemVersion -string 14.0 "$CONTENTS_DIR/Info.plist"
 /usr/bin/plutil -insert LSUIElement -bool true "$CONTENTS_DIR/Info.plist"
 /usr/bin/plutil -insert NSHighResolutionCapable -bool true "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUFeedURL -string "https://liuzhao1225.github.io/codex-account-switcher/updates/macos/appcast.xml" "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUPublicEDKey -string "$(cat "$SCRIPT_DIR/sparkle-public-key.txt")" "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUEnableAutomaticChecks -bool true "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUScheduledCheckInterval -integer 3600 "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUAutomaticallyUpdate -bool false "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUAllowsAutomaticUpdates -bool false "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUEnableSystemProfiling -bool false "$CONTENTS_DIR/Info.plist"
-/usr/bin/plutil -insert SUVerifyUpdateBeforeExtraction -bool true "$CONTENTS_DIR/Info.plist"
-
-# Sign nested executable bundles from the inside out before signing the host app.
-sparkle_version="$FRAMEWORKS_DIR/Sparkle.framework/Versions/B"
-for component in \
-    "$sparkle_version/XPCServices/Downloader.xpc" \
-    "$sparkle_version/XPCServices/Installer.xpc" \
-    "$sparkle_version/Autoupdate" \
-    "$sparkle_version/Updater.app" \
-    "$FRAMEWORKS_DIR/Sparkle.framework"; do
-    if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
-        codesign --force --sign - "$component"
-    else
-        codesign --force --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$component"
-    fi
-done
-
 if [[ "$CODESIGN_IDENTITY" == "-" ]]; then
     codesign --force --deep --sign - "$APP_DIR"
 else
