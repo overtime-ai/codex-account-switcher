@@ -114,6 +114,24 @@ Create a fake JSON-RPC child process that returns:
 
 Assert that the client does not retry, makes one rate-limit request per read, and does not convert one duration into another Usage window.
 
+`CodexExecutableLocatorTests` starts real sh, bash, and zsh login shells with isolated startup files.
+Install fish to enable the fish regression check (it is explicitly skipped when fish is unavailable).
+Each shell covers:
+
+- unset and empty `CODEX_CLI_PATH`;
+- shell-local command and absolute-path overrides;
+- invalid overrides;
+- startup output and paths containing spaces;
+- PATH inheritance by the launched child.
+
+Every shell, fish included when installed, also falls back to a fixture Desktop bundle when no override is set and PATH has no `codex`. The POSIX shells repeat that check with `nounset`.
+
+Fixture bundles cover:
+
+- the order of the bundled CLI layouts;
+- an override left stale by a Desktop update, including `/private` spellings and directories;
+- look-alike sibling bundles, relative paths and paths outside the bundles, which must stay errors.
+
 ## 5. UI tests
 
 Verify:

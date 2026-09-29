@@ -266,9 +266,12 @@ Lookup order:
 
 1. test-only explicit URL;
 2. the login shell's shared `CODEX_CLI_PATH`, resolved through its `PATH` when it is a command name;
-3. the login shell's `codex` command when no shared override is set.
+3. the login shell's `codex` command when no shared override is set;
+4. on macOS, when no override is set and PATH has no `codex`, the CLI bundled with Desktop. The switcher checks the bundle LaunchServices registers for `com.openai.codex`, then `/Applications/ChatGPT.app`, then `/Applications/Codex.app`. The two standard paths count only if their bundle identifier is `com.openai.codex`. LaunchServices is queried only when a lookup needs Desktop's CLI, so a Desktop installed or moved after the switcher started is still found. In each bundle it tries `Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`, then the `codex-cli/bin/codex` entrypoint, then the older `Contents/Resources/codex`.
 
-The runtime version is never pinned. Each operation resolves the current system command. The same login-shell PATH is passed to app-server so npm launchers can resolve Node. A missing command or invalid explicit path is an error; the switcher does not silently start another bundled version.
+The runtime version is never pinned. Each operation resolves the current command. On macOS and Linux, app-server receives the resolved path as `CODEX_CLI_PATH`. The same login-shell PATH is passed to app-server so npm launchers can resolve Node. A missing command is an error. So is an override path that is not an executable file, with one exception.
+
+The exception keeps processes started from Desktop working across Desktop updates. Desktop exports `CODEX_CLI_PATH` pointing into its own bundle, and an update can move that CLI. If an absolute override is not an executable file but lies inside a known Desktop bundle, it resolves to Desktop's current CLI, preferring the bundle it names. The comparison normalizes `.`, `..` and repeated slashes without touching the filesystem, and ignores case. Relative overrides and overrides outside those bundles never fall back to another runtime.
 
 If not found, show one direct error:
 
@@ -402,7 +405,7 @@ Use `NSRunningApplication` for the Codex Desktop bundle identifier and call `ter
 
 Codex Desktop can display a quit confirmation while work is active. Allow up to 30 seconds for its normal exit, including its history and settings flush. Never force-terminate Desktop. If the quit request is rejected or Desktop remains running, report a close-stage error before saving or replacing credentials. The user can finish or stop active tasks, close Desktop, and switch again. Cancellation also stops the wait.
 
-The switcher only observes the Desktop application's exit; it does not terminate CLI processes or claim to repair Codex's history database. Account RPCs read the login shell's `PATH` and shared `CODEX_CLI_PATH` setting. A bare command such as `codex` resolves through that PATH; an explicit absolute path must be executable. The child receives the same PATH so npm launchers can find Node. There is no switcher-specific override or automatic selection of another bundled CLI.
+The switcher only observes the Desktop application's exit; it does not terminate CLI processes or claim to repair Codex's history database. Account RPCs read the login shell's `PATH` and shared `CODEX_CLI_PATH` setting. A bare command such as `codex` resolves through that PATH; an explicit absolute path must be executable. The child receives the same PATH so npm launchers can find Node. There is no switcher-specific override. The installed Desktop app's bundled CLI is used only as described in section 8.
 
 If Desktop is not running, `close()` succeeds immediately.
 
