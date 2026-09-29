@@ -41,13 +41,20 @@ struct DesktopQuitWaiter: Sendable {
 }
 
 struct DesktopController: DesktopControlling {
-    private let bundleIdentifiers = ["com.openai.codex"]
-    private let applicationPaths = ["/Applications/ChatGPT.app", "/Applications/Codex.app"]
+    private static let bundleIdentifiers = ["com.openai.codex"]
+
+    /// Desktop bundles to reopen and to take the CLI from: LaunchServices first, then standard paths.
+    static func applicationURLs() -> [URL] {
+        let registered = bundleIdentifiers.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+        return (registered + CodexExecutableLocator.defaultDesktopApplicationURLs).reduce(into: []) { urls, url in
+            if !urls.contains(where: { $0.standardizedFileURL.path == url.standardizedFileURL.path }) { urls.append(url) }
+        }
+    }
 
     func closeDesktop() async throws {
         let running = NSWorkspace.shared.runningApplications.filter { application in
             guard let bundleIdentifier = application.bundleIdentifier else { return false }
-            return bundleIdentifiers.contains(bundleIdentifier)
+            return Self.bundleIdentifiers.contains(bundleIdentifier)
         }
         guard !running.isEmpty else { return }
         for application in running where !application.isTerminated {
@@ -76,14 +83,7 @@ struct DesktopController: DesktopControlling {
     }
 
     private func applicationURL() -> URL? {
-        for identifier in bundleIdentifiers {
-            if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) {
-                return url
-            }
-        }
-        return applicationPaths
-            .map(URL.init(fileURLWithPath:))
-            .first(where: { FileManager.default.fileExists(atPath: $0.path) })
+        Self.applicationURLs().first(where: { FileManager.default.fileExists(atPath: $0.path) })
     }
 
     private var isDesktopRunning: Bool {
@@ -93,7 +93,7 @@ struct DesktopController: DesktopControlling {
     private var runningDesktopApplications: [NSRunningApplication] {
         NSWorkspace.shared.runningApplications.filter { application in
             guard let bundleIdentifier = application.bundleIdentifier else { return false }
-            return bundleIdentifiers.contains(bundleIdentifier)
+            return Self.bundleIdentifiers.contains(bundleIdentifier)
         }
     }
 

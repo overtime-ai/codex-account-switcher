@@ -5,6 +5,7 @@ import Testing
 struct CodexExecutableLocatorTests {
     @Test(arguments: [
         "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "Contents/Resources/codex-cli/bin/codex",
         "Contents/Resources/codex",
     ])
     func findsBundledCLIWithMissingOrBrokenPATHCommand(relativePath: String) throws {
@@ -56,15 +57,20 @@ struct CodexExecutableLocatorTests {
         let other = root.appendingPathComponent("Codex.app")
         let modern = application.appendingPathComponent("Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
         let otherCLI = other.appendingPathComponent("Contents/Resources/codex")
-        for executable in [modern, otherCLI] {
-            try FileManager.default.createDirectory(at: executable.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data("#!/bin/sh\nexit 0\n".utf8).write(to: executable)
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let bin = root.appendingPathComponent("bin")
+        let pathCommand = bin.appendingPathComponent("codex")
+        for executable in [modern, otherCLI, pathCommand] {
+            try Self.writeExecutable(executable)
         }
         // Desktop exported its pre-update layout into this process before the update removed it.
         let stale = application.appendingPathComponent("Contents/Resources/codex").path
         let locator = CodexExecutableLocator(desktopApplicationURLs: [other, application])
-        #expect(try locator.locate(environment: ["PATH": "/nonexistent", "CODEX_CLI_PATH": stale]) == modern)
+        for override in [stale, "\(application.path)/./Contents/Resources/codex",
+                         root.path + "//ChatGPT.app/Contents/Resources/codex",
+                         stale.replacingOccurrences(of: "ChatGPT.app", with: "chatgpt.APP")] {
+            // The bundle the override names wins over both other bundles and a PATH command.
+            #expect(try locator.locate(environment: ["PATH": bin.path, "CODEX_CLI_PATH": override]) == modern)
+        }
 
         let shell = root.appendingPathComponent("login")
         try FileManager.default.createDirectory(at: shell, withIntermediateDirectories: true)
@@ -73,14 +79,50 @@ struct CodexExecutableLocatorTests {
             "PATH": "/usr/bin:/bin", "CODEX_CLI_PATH": stale,
         ])
         #expect(launch.executable == modern)
+        #expect(launch.environment["CODEX_CLI_PATH"] == modern.path)
 
-        // A stale path outside every Desktop bundle, or a bundle without a CLI, stays an error.
+        // Every listed bundle is the same Desktop product, so another installed copy's CLI is used.
         try FileManager.default.removeItem(at: modern)
-        for override in [stale, root.appendingPathComponent("elsewhere/codex").path] {
+        #expect(try locator.locate(environment: ["PATH": "/nonexistent", "CODEX_CLI_PATH": stale]) == otherCLI)
+
+        // Paths outside the Desktop bundles, including look-alike siblings, stay errors.
+        for override in [root.appendingPathComponent("elsewhere/codex").path,
+                         root.appendingPathComponent("ChatGPT.app.old/Contents/Resources/codex").path,
+                         root.appendingPathComponent("ChatGPT.appX/Contents/Resources/codex").path] {
             #expect(throws: CodexClientError.processLaunchFailed("CODEX_CLI_PATH is not executable: \(override)")) {
                 try locator.locate(environment: ["PATH": "/nonexistent", "CODEX_CLI_PATH": override])
             }
         }
+        try FileManager.default.removeItem(at: otherCLI)
+        #expect(throws: CodexClientError.processLaunchFailed("CODEX_CLI_PATH is not executable: \(stale)")) {
+            try locator.locate(environment: ["PATH": "/nonexistent", "CODEX_CLI_PATH": stale])
+        }
+    }
+
+    @Test(arguments: ["/bin/sh", "/bin/bash", "/bin/zsh"], [false, true])
+    func loginShellWithoutOverrideFallsBackToDesktopCLI(shell: String, nounset: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("codex-shell-tests-\(UUID())")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let application = root.appendingPathComponent("ChatGPT.app")
+        let bundled = application.appendingPathComponent("Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
+        try Self.writeExecutable(bundled)
+        let startupName = shell.hasSuffix("/zsh") ? ".zprofile" : shell.hasSuffix("/bash") ? ".bash_profile" : ".profile"
+        // nounset must not turn the unset override into a failed login-shell read.
+        let startup = (nounset ? (shell.hasSuffix("/zsh") ? "setopt nounset\n" : "set -u\n") : "")
+            + "export PATH=\"/usr/bin:/bin:/usr/sbin:/sbin\"\n"
+        try Data(startup.utf8).write(to: root.appendingPathComponent(startupName))
+
+        let launch = try CodexExecutableLocator(desktopApplicationURLs: [application]).launchConfiguration(environment: [
+            "SHELL": shell, "HOME": root.path, "ZDOTDIR": root.path, "PATH": "/usr/bin:/bin",
+        ])
+        #expect(launch.executable == bundled)
+        #expect(launch.environment["PATH"] == "/usr/bin:/bin:/usr/sbin:/sbin")
+    }
+
+    private static func writeExecutable(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: url)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
     }
 
     @Test(arguments: ["/bin/sh", "/bin/bash", "/bin/zsh"])
@@ -138,12 +180,12 @@ struct CodexExecutableLocatorTests {
             if override?.hasPrefix("/nonexistent/") == true {
                 #expect(throws: CodexClientError.processLaunchFailed(
                     "CODEX_CLI_PATH is not executable: \(override!)")) {
-                    try CodexExecutableLocator().launchConfiguration(environment: environment)
+                    try CodexExecutableLocator(desktopApplicationURLs: []).launchConfiguration(environment: environment)
                 }
                 continue
             }
 
-            let launch = try CodexExecutableLocator().launchConfiguration(environment: environment)
+            let launch = try CodexExecutableLocator(desktopApplicationURLs: []).launchConfiguration(environment: environment)
             let expectedName = override == nil || override == "" ? "codex" : "custom-codex"
             #expect(launch.executable == bin.appendingPathComponent(expectedName))
             let expectedPATH = "\(bin.path):/usr/bin:/bin:/usr/sbin:/sbin"

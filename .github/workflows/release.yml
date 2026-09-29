@@ -61,6 +61,9 @@ jobs:
           test "$(uname -m)" = "arm64"
           swift --version
 
+      - name: Install fish for login-shell regression tests
+        run: brew install fish
+
       - name: Run release tests
         run: |
           set -euo pipefail

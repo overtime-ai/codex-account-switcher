@@ -42,7 +42,7 @@ final class AppModel: AccountController, @MainActor ObservableObject {
 
     static func live() -> AppModel {
         let store = AccountStore()
-        let codex = CodexClient()
+        let codex = CodexClient(locator: CodexExecutableLocator(desktopApplicationURLs: DesktopController.applicationURLs()))
         return AppModel(store: store, codex: codex,
                         switchService: SwitchService(desktop: DesktopController(), store: store, codex: codex))
     }

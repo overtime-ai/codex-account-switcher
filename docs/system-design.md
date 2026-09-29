@@ -267,11 +267,11 @@ Lookup order:
 1. test-only explicit URL;
 2. the login shell's shared `CODEX_CLI_PATH`, resolved through its `PATH` when it is a command name;
 3. the login shell's `codex` command when no shared override is set;
-4. on macOS, when no override is set and PATH has no `codex`, the CLI bundled in `/Applications/ChatGPT.app` or `/Applications/Codex.app` (`Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`, then the older `Contents/Resources/codex`).
+4. on macOS, when no override is set and PATH has no `codex`, the CLI bundled with Desktop. The switcher checks the bundle LaunchServices registers for `com.openai.codex`, then `/Applications/ChatGPT.app`, then `/Applications/Codex.app`. In each bundle it tries `Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex`, then the `codex-cli/bin/codex` entrypoint, then the older `Contents/Resources/codex`.
 
-The runtime version is never pinned. Each operation resolves the current system command. The same login-shell PATH is passed to app-server so npm launchers can resolve Node. A missing command or invalid explicit path is an error; the switcher does not silently start another bundled version.
+The runtime version is never pinned. Each operation resolves the current command, and app-server receives the resolved path as `CODEX_CLI_PATH`. The same login-shell PATH is passed to app-server so npm launchers can resolve Node. A missing command is an error. So is an override path that no longer exists, with one exception.
 
-One exception keeps processes started from Desktop working across Desktop updates. Desktop exports `CODEX_CLI_PATH` pointing into its own bundle, and an update can move that CLI. A missing override inside a known Desktop bundle resolves to that same bundle's current CLI. A missing override anywhere else remains an error.
+The exception keeps processes started from Desktop working across Desktop updates. Desktop exports `CODEX_CLI_PATH` pointing into its own bundle, and an update can move that CLI. An override path that no longer exists but lies inside a known Desktop bundle resolves to Desktop's current CLI, preferring the bundle it names. The comparison uses the standardized path and ignores case. An override outside those bundles never falls back to another runtime.
 
 If not found, show one direct error:
 
