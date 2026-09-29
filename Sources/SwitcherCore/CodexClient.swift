@@ -354,9 +354,14 @@ private actor JSONRPCSession {
 
 public struct CodexExecutableLocator: Sendable {
     public let explicitURL: URL?
+    private let desktopApplicationURLs: [URL]
 
-    public init(explicitURL: URL? = nil) {
+    public init(explicitURL: URL? = nil, desktopApplicationURLs: [URL] = [
+        URL(fileURLWithPath: "/Applications/ChatGPT.app"),
+        URL(fileURLWithPath: "/Applications/Codex.app"),
+    ]) {
         self.explicitURL = explicitURL
+        self.desktopApplicationURLs = desktopApplicationURLs
     }
 
     public func locate(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> URL {
@@ -394,10 +399,20 @@ public struct CodexExecutableLocator: Sendable {
         }
         #else
         if executable.contains("/") {
-            guard executable.hasPrefix("/"), isExecutable(executable) else {
-                throw CodexClientError.processLaunchFailed("CODEX_CLI_PATH is not executable: \(executable)")
+            if executable.hasPrefix("/"), isExecutable(executable) {
+                return URL(fileURLWithPath: executable)
             }
-            return URL(fileURLWithPath: executable)
+            #if os(macOS)
+            // Desktop exports CODEX_CLI_PATH into processes it starts. A Desktop update can move
+            // its bundled CLI, so a missing path inside a known bundle means that bundle's
+            // current CLI, never a different runtime.
+            if let application = desktopApplicationURLs.first(where: {
+                executable.hasPrefix($0.path + "/Contents/")
+            }), let bundledCLI = bundledCLI(in: application) {
+                return bundledCLI
+            }
+            #endif
+            throw CodexClientError.processLaunchFailed("CODEX_CLI_PATH is not executable: \(executable)")
         }
         if let path = environment["PATH"]?
             .split(separator: ":")
@@ -407,12 +422,21 @@ public struct CodexExecutableLocator: Sendable {
         {
             return URL(fileURLWithPath: path)
         }
+        #if os(macOS)
+        if command == nil || command == "" {
+            for applicationURL in desktopApplicationURLs {
+                if let bundledCLI = bundledCLI(in: applicationURL) { return bundledCLI }
+            }
+        }
+        #endif
         #endif
         throw CodexClientError.executableNotFound
     }
 
-    public func launchConfiguration() throws -> (executable: URL, environment: [String: String]) {
-        var environment = ProcessInfo.processInfo.environment
+    public func launchConfiguration(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) throws -> (executable: URL, environment: [String: String]) {
+        var environment = environment
         #if !os(Windows)
         if explicitURL == nil {
             // GUI apps do not inherit the terminal's login PATH. Read the same shell settings
@@ -420,7 +444,11 @@ public struct CodexExecutableLocator: Sendable {
             let shell = Process()
             let output = Pipe()
             shell.executableURL = URL(fileURLWithPath: environment["SHELL"] ?? "/bin/zsh")
-            shell.arguments = ["-l", "-c", "printf '\\0%s\\0%s\\0' \"$PATH\" \"${CODEX_CLI_PATH:-codex}\""]
+            // Quoted PATH is colon-separated in fish too. Keep defaulting in locate()
+            // because fish does not support POSIX ${VAR:-default} expansion, and an unset
+            // command must stay distinguishable so locate() can fall back to Desktop's CLI.
+            shell.arguments = ["-l", "-c", "printf '\\0%s\\0%s\\0' \"$PATH\" \"$CODEX_CLI_PATH\""]
+            shell.environment = environment
             shell.standardOutput = output
             shell.standardError = FileHandle.nullDevice
             try shell.run()
@@ -436,6 +464,17 @@ public struct CodexExecutableLocator: Sendable {
         #endif
         return (try locate(environment: environment), environment)
     }
+
+    #if os(macOS)
+    private func bundledCLI(in applicationURL: URL) -> URL? {
+        [
+            "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+            "Contents/Resources/codex",
+        ]
+        .map { applicationURL.appendingPathComponent($0) }
+        .first { isExecutable($0.path) }
+    }
+    #endif
 
     private func isExecutable(_ path: String) -> Bool {
         #if os(Windows)
