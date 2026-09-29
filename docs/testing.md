@@ -122,10 +122,15 @@ Each shell covers:
 - shell-local command and absolute-path overrides;
 - invalid overrides;
 - startup output and paths containing spaces;
-- PATH inheritance by the launched child;
-- falling back to a fixture Desktop bundle when no override is set and PATH has no `codex`, with and without `nounset`.
+- PATH inheritance by the launched child.
 
-Fixture bundles also cover each bundled CLI layout, and an override left stale by a Desktop update, including look-alike sibling bundles that must stay errors.
+Every shell, fish included when installed, also falls back to a fixture Desktop bundle when no override is set and PATH has no `codex`. The POSIX shells repeat that check with `nounset`.
+
+Fixture bundles cover:
+
+- the order of the bundled CLI layouts;
+- an override left stale by a Desktop update, including `/private` spellings and directories;
+- look-alike sibling bundles, relative paths and paths outside the bundles, which must stay errors.
 
 ## 5. UI tests
 

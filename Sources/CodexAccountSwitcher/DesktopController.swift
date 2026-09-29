@@ -45,8 +45,16 @@ struct DesktopController: DesktopControlling {
 
     /// Desktop bundles to reopen and to take the CLI from: LaunchServices first, then standard paths.
     static func applicationURLs() -> [URL] {
-        let registered = bundleIdentifiers.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
-        return (registered + CodexExecutableLocator.defaultDesktopApplicationURLs).reduce(into: []) { urls, url in
+        applicationURLs(
+            registered: bundleIdentifiers.compactMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) },
+            standard: CodexExecutableLocator.defaultDesktopApplicationURLs.filter {
+                Bundle(url: $0)?.bundleIdentifier.map(bundleIdentifiers.contains) ?? false
+            }
+        )
+    }
+
+    static func applicationURLs(registered: [URL], standard: [URL]) -> [URL] {
+        (registered + standard).reduce(into: []) { urls, url in
             if !urls.contains(where: { $0.standardizedFileURL.path == url.standardizedFileURL.path }) { urls.append(url) }
         }
     }

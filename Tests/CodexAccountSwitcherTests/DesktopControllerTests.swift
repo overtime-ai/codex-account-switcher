@@ -4,6 +4,18 @@ import Testing
 @testable import CodexAccountSwitcher
 
 struct DesktopControllerTests {
+    @Test func desktopApplicationURLsPreferLaunchServicesAndDropDuplicates() {
+        let registered = URL(fileURLWithPath: "/Users/example/Applications/ChatGPT.app/")
+        let standard = [
+            URL(fileURLWithPath: "/Applications/ChatGPT.app"),
+            URL(fileURLWithPath: "/Users/example/Applications/./ChatGPT.app"),
+            URL(fileURLWithPath: "/Applications/Codex.app"),
+        ]
+        #expect(DesktopController.applicationURLs(registered: [registered], standard: standard).map(\.path) == [
+            "/Users/example/Applications/ChatGPT.app", "/Applications/ChatGPT.app", "/Applications/Codex.app",
+        ])
+    }
+
     @Test func allowsHistoryFlushToTakeLongerThanTwoSeconds() async throws {
         let clock = ContinuousClock()
         let exitsAt = clock.now.advanced(by: .milliseconds(2_100))

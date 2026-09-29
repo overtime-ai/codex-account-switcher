@@ -354,7 +354,7 @@ private actor JSONRPCSession {
 
 public struct CodexExecutableLocator: Sendable {
     public let explicitURL: URL?
-    private let desktopApplicationURLs: [URL]
+    private let desktopApplicationURLs: @Sendable () -> [URL]
 
     /// Standard Desktop bundle locations, in preference order.
     public static let defaultDesktopApplicationURLs = [
@@ -365,8 +365,14 @@ public struct CodexExecutableLocator: Sendable {
     /// `desktopApplicationURLs` lists the Desktop bundles whose CLI can be used on macOS;
     /// other platforms ignore it.
     public init(explicitURL: URL? = nil, desktopApplicationURLs: [URL] = defaultDesktopApplicationURLs) {
+        self.init(explicitURL: explicitURL, desktopApplications: { desktopApplicationURLs })
+    }
+
+    /// Queries `desktopApplications` only when a lookup needs Desktop's CLI, so a Desktop
+    /// installed or moved after launch is still found.
+    public init(explicitURL: URL? = nil, desktopApplications: @escaping @Sendable () -> [URL]) {
         self.explicitURL = explicitURL
-        self.desktopApplicationURLs = desktopApplicationURLs
+        desktopApplicationURLs = desktopApplications
     }
 
     public func locate(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> URL {
@@ -410,9 +416,12 @@ public struct CodexExecutableLocator: Sendable {
             #if os(macOS)
             // Desktop exports CODEX_CLI_PATH, pointing into its own bundle, to processes it starts.
             // An update can move that CLI; the override still means Desktop's current CLI.
-            if let owner = desktopApplication(containing: executable),
-               let bundledCLI = bundledDesktopCLI(preferring: owner) {
-                return bundledCLI
+            if executable.hasPrefix("/") {
+                let applications = desktopApplicationURLs()
+                if let owner = desktopApplication(containing: executable, in: applications),
+                   let bundledCLI = bundledDesktopCLI(in: [owner] + applications) {
+                    return bundledCLI
+                }
             }
             #endif
             throw CodexClientError.processLaunchFailed("CODEX_CLI_PATH is not executable: \(executable)")
@@ -426,7 +435,7 @@ public struct CodexExecutableLocator: Sendable {
             return URL(fileURLWithPath: path)
         }
         #if os(macOS)
-        if command?.isEmpty ?? true, let bundledCLI = bundledDesktopCLI() {
+        if command?.isEmpty ?? true, let bundledCLI = bundledDesktopCLI(in: desktopApplicationURLs()) {
             return bundledCLI
         }
         #endif
@@ -449,7 +458,8 @@ public struct CodexExecutableLocator: Sendable {
             // Quoted PATH is colon-separated in fish too. Keep defaulting in locate(): fish has no
             // ${VAR-default} expansion, and an unset override must print empty so locate() can
             // fall back to Desktop's CLI. POSIX shells use ${VAR-} so nounset profiles still work.
-            let override = shellURL.lastPathComponent == "fish" ? "\"$CODEX_CLI_PATH\"" : "\"${CODEX_CLI_PATH-}\""
+            let isFish = shellURL.resolvingSymlinksInPath().lastPathComponent.hasPrefix("fish")
+            let override = isFish ? "\"$CODEX_CLI_PATH\"" : "\"${CODEX_CLI_PATH-}\""
             shell.arguments = ["-l", "-c", "printf '\\0%s\\0%s\\0' \"$PATH\" \(override)"]
             shell.environment = environment
             shell.standardOutput = output
@@ -475,8 +485,8 @@ public struct CodexExecutableLocator: Sendable {
 
     #if os(macOS)
     /// All listed bundles are the same Desktop product, so any installed copy's CLI will do.
-    private func bundledDesktopCLI(preferring owner: URL? = nil) -> URL? {
-        for application in [owner].compactMap({ $0 }) + desktopApplicationURLs {
+    private func bundledDesktopCLI(in applications: [URL]) -> URL? {
+        for application in applications {
             for relativePath in [
                 "Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
                 "Contents/Resources/codex-cli/bin/codex",
@@ -489,11 +499,21 @@ public struct CodexExecutableLocator: Sendable {
         return nil
     }
 
-    private func desktopApplication(containing path: String) -> URL? {
-        let path = URL(fileURLWithPath: path).standardizedFileURL.path
-        return desktopApplicationURLs.first {
-            path.range(of: $0.standardizedFileURL.path + "/Contents/", options: [.anchored, .caseInsensitive]) != nil
+    private func desktopApplication(containing path: String, in applications: [URL]) -> URL? {
+        let path = Self.lexicallyNormalized(path)
+        return applications.first {
+            path.range(of: Self.lexicallyNormalized($0.path) + "/Contents/", options: [.anchored, .caseInsensitive]) != nil
         }
+    }
+
+    /// Resolves `.`, `..` and repeated slashes without touching the filesystem, so an existing
+    /// bundle and a removed override normalize the same way.
+    private static func lexicallyNormalized(_ path: String) -> String {
+        var components: [Substring] = []
+        for component in path.split(separator: "/") where component != "." {
+            if component == ".." { _ = components.popLast() } else { components.append(component) }
+        }
+        return "/" + components.joined(separator: "/")
     }
     #endif
 
@@ -503,7 +523,9 @@ public struct CodexExecutableLocator: Sendable {
         return path.lowercased().hasSuffix(".exe")
             && FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && !isDirectory.boolValue
         #else
-        FileManager.default.isExecutableFile(atPath: path)
+        var isDirectory: ObjCBool = false
+        return FileManager.default.isExecutableFile(atPath: path)
+            && FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && !isDirectory.boolValue
         #endif
     }
 }
