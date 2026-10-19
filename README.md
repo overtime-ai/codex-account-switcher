@@ -1,5 +1,15 @@
 > **Overtime fork:** Application update checks, downloads, installation, notifications, and controls have been removed on both macOS and Windows. This fork does not contact the upstream update service. Account login and usage refresh through Codex still work. Build from this repository; upstream binaries do not contain these changes. See [fork maintenance](docs/overtime-fork.md).
 
+### Claude Desktop accounts (macOS)
+
+Choose **Claude Desktop → Manage Accounts → Add Account**, complete Claude's own sign-in, and open its **Code** tab. The switcher detects the native login and saves the account automatically, without asking for a profile name. Accounts receive a short local account-ID label. You can cancel pending sign-in from the switcher; it reopens the previous account. Finish or stop running Claude tasks before adding or switching accounts: Claude must quit normally to save its state. It is never force-quit.
+
+Switching carries **local Code conversations and local project groupings** across saved accounts. The original transcripts in `~/.claude/projects` and project folders stay in place. Before Claude reopens, the switcher merges account-specific sidebar records and local project metadata, keeping the newest activity. It tracks subsequent deletions so removed chats/projects are not reimported. Existing destination metadata is backed up under `~/Library/Application Support/Codex Account Switcher/claude-desktop/history-backups/` before replacement or removal. Invalid files, links, conflicting conversation IDs, and remote/isolated-session formats stop switching rather than guessing.
+
+Login state stays in separate private desktop profile folders; the switcher does not extract tokens. Cross-account copies reset session approvals and omit account-bound cloud project references. **Continuing a shared Code conversation sends its context under the selected account**, including that account's organization policies. Cloud Chat conversations, cloud Projects, Cowork/remote sessions, attachments outside the shared transcript store, and cloud integrations are not transferred.
+
+This desktop mechanism is unofficial and was checked against Claude Desktop **2.42304.0**. Always reopen saved accounts through the switcher: a Dock launch or Claude's own update/relaunch may open the normal account. Custom data folders can limit local pairing features, including Chrome extension pairing. Claude may occasionally require sign-in again. Usage meters, Windows Claude support, and CLI account switching are not included.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/account-switcher-logo-white.png">

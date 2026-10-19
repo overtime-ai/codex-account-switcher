@@ -5,43 +5,57 @@ import SwiftUI
 struct MenuBarPopover: View {
     @ObservedObject var model: AppModel
     @State private var page: PopoverPage = .accounts
+    @State private var showsClaude = false
+    @ObservedObject var claude: ClaudeProfilesModel
 
     var body: some View {
         VStack(spacing: 0) {
-            if let error = model.visibleError {
-                InlineErrorBanner(
-                    title: model.text(error.titleKey),
-                    message: error.messageKey.map(model.text) ?? error.message,
-                    dismissTitle: model.text("ok"),
-                    onDismiss: model.dismissError
-                )
-                Divider()
+            Picker("Application", selection: $showsClaude) {
+                Text("Codex").tag(false)
+                Text("Claude Desktop").tag(true)
             }
+            .pickerStyle(.segmented)
+            .padding(8)
+            .disabled(model.isMutating || model.isAddingAccount || claude.isOpening || claude.isAddingAccount)
 
-            Group {
-                switch page {
-                case .accounts:
-                    accountPage
-                case .manageAccounts:
-                    ManageAccountsView(model: model) {
-                        page = .accounts
-                    }
-                case .settings:
-                    SettingsView(model: model) {
-                        page = .accounts
-                    }
-                case let .confirmSwitch(account):
-                    SwitchConfirmationPage(
-                        model: model,
-                        account: account,
-                        onCancel: {
-                            page = .accounts
-                        },
-                        onConfirm: {
-                            page = .accounts
-                            Task { await model.switchAccount(to: account.id) }
-                        }
+            if showsClaude {
+                ClaudeProfilesView(model: claude)
+            } else {
+                if let error = model.visibleError {
+                    InlineErrorBanner(
+                        title: model.text(error.titleKey),
+                        message: error.messageKey.map(model.text) ?? error.message,
+                        dismissTitle: model.text("ok"),
+                        onDismiss: model.dismissError
                     )
+                    Divider()
+                }
+
+                Group {
+                    switch page {
+                    case .accounts:
+                        accountPage
+                    case .manageAccounts:
+                        ManageAccountsView(model: model) {
+                            page = .accounts
+                        }
+                    case .settings:
+                        SettingsView(model: model) {
+                            page = .accounts
+                        }
+                    case let .confirmSwitch(account):
+                        SwitchConfirmationPage(
+                            model: model,
+                            account: account,
+                            onCancel: {
+                                page = .accounts
+                            },
+                            onConfirm: {
+                                page = .accounts
+                                Task { await model.switchAccount(to: account.id) }
+                            }
+                        )
+                    }
                 }
             }
         }

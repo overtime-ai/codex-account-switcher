@@ -5,10 +5,11 @@ import SwiftUI
 @main
 struct SwitcherApp: App {
     @StateObject private var model = AppModel.live()
+    @StateObject private var claude = ClaudeProfilesModel()
 
     var body: some Scene {
         MenuBarExtra {
-            MenuBarPopover(model: model)
+            MenuBarPopover(model: model, claude: claude)
         } label: {
             HStack(spacing: 4) {
                 MenuBarLogo()
