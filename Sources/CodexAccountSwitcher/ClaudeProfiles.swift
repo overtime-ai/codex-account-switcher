@@ -7,7 +7,7 @@ struct ClaudeProfile: Codable, Identifiable, Equatable {
     let name: String
 
     static let existing = ClaudeProfile(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, name: "Existing Claude"
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, name: "Default Claude profile"
     )
 }
 

@@ -23,7 +23,7 @@ struct MenuBarPopover: View {
                 if showsClaudeSettings {
                     SettingsView(model: model) { showsClaudeSettings = false }
                 } else {
-                    ClaudeProfilesView(model: claude, settings: model.settings,
+                    ClaudeProfilesView(model: claude,
                                        onSettings: { showsClaudeSettings = true }, onQuit: { NSApp.terminate(nil) })
                 }
             } else {

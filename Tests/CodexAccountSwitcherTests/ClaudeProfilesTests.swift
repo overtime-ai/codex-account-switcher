@@ -35,7 +35,7 @@ struct ClaudeProfilesTests {
         #expect(store.directory(for: profile).lastPathComponent == profile.id.uuidString)
         #expect(try store.launchArguments(for: profile).count == 1)
         #expect(throws: ClaudeProfileError.self) { try store.add(name: " ") }
-        #expect(throws: ClaudeProfileError.self) { try store.add(name: "Existing Claude") }
+        #expect(throws: ClaudeProfileError.self) { try store.add(name: ClaudeProfile.existing.name) }
         #expect(throws: ClaudeProfileError.self) { try store.add(name: String(repeating: "a", count: 81)) }
     }
 

@@ -1,9 +1,7 @@
-import SwitcherCore
 import SwiftUI
 
 struct ClaudeProfilesView: View {
     @ObservedObject var model: ClaudeProfilesModel
-    var settings: AppSettings = .default
     var onSettings: () -> Void = {}
     var onQuit: () -> Void = {}
     @State private var pending: ClaudeProfile?
@@ -138,7 +136,7 @@ struct ClaudeProfilesView: View {
         if let weekly = details?.weekly {
             usageWindow("7d", weekly)
         }
-        if let fiveHour = details?.fiveHour, settings.showsFiveHourUsage || details?.weekly == nil {
+        if let fiveHour = details?.fiveHour {
             usageWindow("5h", fiveHour)
         }
         if details?.weekly == nil && details?.fiveHour == nil {
