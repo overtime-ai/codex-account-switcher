@@ -16,6 +16,7 @@ struct ClaudeHistoryTests {
         init() throws {
             root = URL(fileURLWithPath: "/private/tmp").appending(path: UUID().uuidString)
             store = ClaudeProfileStore(root: root.appending(path: "switcher"), existingData: root.appending(path: "existing"))
+            try store.save(.existing)
             work = try store.add(name: "Work")
             try write(["lastKnownAccountUuid": account], to: store.existingData.appending(path: "config.json"))
             try write(["lastKnownAccountUuid": otherAccount], to: store.directory(for: work).appending(path: "config.json"))

@@ -32,7 +32,7 @@ struct ClaudeAccountFlowTests {
         let org = "22222222-2222-2222-2222-222222222222"
         desktop.onLaunch = { arguments in
             guard arguments.contains("claude://code"), let path = arguments.first?.split(separator: "=", maxSplits: 1).last else { return }
-            #expect(try store.load() == [.existing])
+            #expect(try store.load().isEmpty)
             let data = URL(fileURLWithPath: String(path))
             try JSONSerialization.data(withJSONObject: ["lastKnownAccountUuid": account, "oauth:tokenCacheV2": "opaque-native-login"]).write(to: data.appending(path: "config.json"))
             try FileManager.default.createDirectory(at: data.appending(path: "claude-code-sessions/\(account)/\(org)"), withIntermediateDirectories: true)
@@ -41,7 +41,7 @@ struct ClaudeAccountFlowTests {
         for _ in 0..<500 where model.isAddingAccount { try await Task.sleep(for: .milliseconds(1)) }
         #expect(!model.isAddingAccount)
         #expect(model.error == nil)
-        #expect(try store.load().count == 2)
+        #expect(try store.load().count == 1)
         #expect(try store.lastOpened().id == model.profiles.last?.id)
         #expect(desktop.events == ["close", "sign-in", "close", "open"])
     }
@@ -55,13 +55,14 @@ struct ClaudeAccountFlowTests {
         for _ in 0..<500 where model.isAddingAccount { try await Task.sleep(for: .milliseconds(1)) }
         #expect(!model.isAddingAccount)
         #expect(model.error == nil)
-        #expect(try store.load() == [.existing])
+        #expect(try store.load().isEmpty)
         #expect(desktop.events == ["close", "sign-in", "close", "open"])
     }
 
     @Test func quitFailureStopsBeforeSwitchingOrLaunchingSignIn() async throws {
         let (root, store, desktop, model) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
+        try store.save(.existing)
         desktop.failsToClose = true
         await model.open(.existing)
         #expect(desktop.events == ["close"])
@@ -70,12 +71,23 @@ struct ClaudeAccountFlowTests {
         #expect(!model.isOpening)
     }
 
+    @Test func unregisteredDefaultCannotBeSelectedOrAutomaticallyAdded() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        model.load()
+        await model.open(.existing)
+        #expect(model.profiles.isEmpty)
+        #expect(try store.load().isEmpty)
+        #expect(desktop.events.isEmpty)
+        #expect(model.error != nil)
+    }
+
     @Test func staleAccountMetadataWithoutNativeLoginCannotCompleteRegistration() throws {
         let (root, store, _, _) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
         let pending = try store.createPending()
         try JSONSerialization.data(withJSONObject: ["lastKnownAccountUuid": "11111111-1111-1111-1111-111111111111"]).write(to: store.directory(for: pending).appending(path: "config.json"))
         #expect(try store.signedInProfile(pending) == nil)
-        #expect(try store.load() == [.existing])
+        #expect(try store.load().isEmpty)
     }
 }

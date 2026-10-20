@@ -115,6 +115,7 @@ extension ClaudeAccountDetailsTests {
         try JSONSerialization.data(withJSONObject: config).write(to: store.existingData.appending(path: "config.json"))
         let server = ClaudeDetailsServer()
         let reader = ClaudeAccountReader(keyProvider: { key }, transport: { try await server.respond($0) })
+        try store.save(.existing)
         let model = ClaudeProfilesModel(store: store, reader: reader)
         model.load()
         await model.refreshDetails(allowKeychainPrompt: true)

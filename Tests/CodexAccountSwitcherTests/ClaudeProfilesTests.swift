@@ -17,8 +17,10 @@ struct ClaudeProfilesTests {
         let original = Data("existing history and login placeholder".utf8)
         try original.write(to: history)
 
+        #expect(try store.load().isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: store.root.appending(path: "profiles.json").path))
         let added = try store.add(name: " Work ")
-        #expect(try store.load() == [.existing, added])
+        #expect(try store.load() == [added])
         #expect(added.name == "Work")
         #expect(try Data(contentsOf: history) == original)
         #expect(try FileManager.default.contentsOfDirectory(atPath: store.directory(for: added).path).isEmpty)
@@ -28,6 +30,15 @@ struct ClaudeProfilesTests {
         #expect(permissions == 0o700)
     }
 
+    @Test func addingAnotherAccountPreservesEveryManuallySavedProfile() throws {
+        let (root, store) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = try store.add(name: "First")
+        let second = try store.add(name: "Second")
+        let reloaded = ClaudeProfileStore(root: store.root, existingData: store.existingData)
+        #expect(try reloaded.load() == [first, second])
+    }
+
     @Test func namesCannotBecomePathsOrLaunchArguments() throws {
         let (root, store) = try fixture()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -35,7 +46,7 @@ struct ClaudeProfilesTests {
         #expect(store.directory(for: profile).lastPathComponent == profile.id.uuidString)
         #expect(try store.launchArguments(for: profile).count == 1)
         #expect(throws: ClaudeProfileError.self) { try store.add(name: " ") }
-        #expect(throws: ClaudeProfileError.self) { try store.add(name: ClaudeProfile.existing.name) }
+        #expect(throws: ClaudeProfileError.self) { try store.add(name: profile.name) }
         #expect(throws: ClaudeProfileError.self) { try store.add(name: String(repeating: "a", count: 81)) }
     }
 

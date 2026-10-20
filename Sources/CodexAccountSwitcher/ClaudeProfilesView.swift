@@ -22,6 +22,11 @@ struct ClaudeProfilesView: View {
             }
             ScrollView {
                 VStack(spacing: 2) {
+                    if model.profiles.isEmpty {
+                        Text("No Claude accounts added. Use Manage Accounts → Add Account to sign in.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .padding(12)
+                    }
                     ForEach(model.profiles) { profile in
                         Button { pending = profile } label: {
                             HStack(spacing: 10) {
