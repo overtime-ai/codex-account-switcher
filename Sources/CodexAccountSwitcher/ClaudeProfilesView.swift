@@ -1,9 +1,7 @@
-import SwitcherCore
 import SwiftUI
 
 struct ClaudeProfilesView: View {
     @ObservedObject var model: ClaudeProfilesModel
-    var settings: AppSettings = .default
     var onSettings: () -> Void = {}
     var onQuit: () -> Void = {}
     @State private var pending: ClaudeProfile?
@@ -24,6 +22,11 @@ struct ClaudeProfilesView: View {
             }
             ScrollView {
                 VStack(spacing: 2) {
+                    if model.profiles.isEmpty {
+                        Text("No Claude accounts added. Use Manage Accounts → Add Account to sign in.")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .padding(12)
+                    }
                     ForEach(model.profiles) { profile in
                         Button { pending = profile } label: {
                             HStack(spacing: 10) {
@@ -138,7 +141,7 @@ struct ClaudeProfilesView: View {
         if let weekly = details?.weekly {
             usageWindow("7d", weekly)
         }
-        if let fiveHour = details?.fiveHour, settings.showsFiveHourUsage || details?.weekly == nil {
+        if let fiveHour = details?.fiveHour {
             usageWindow("5h", fiveHour)
         }
         if details?.weekly == nil && details?.fiveHour == nil {

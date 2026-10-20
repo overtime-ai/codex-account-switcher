@@ -7,7 +7,7 @@ struct ClaudeProfile: Codable, Identifiable, Equatable {
     let name: String
 
     static let existing = ClaudeProfile(
-        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, name: "Existing Claude"
+        id: UUID(uuidString: "00000000-0000-0000-0000-000000000000")!, name: "Default Claude profile"
     )
 }
 
@@ -29,12 +29,12 @@ struct ClaudeProfileStore {
 
     func load() throws -> [ClaudeProfile] {
         let registry = root.appending(path: "profiles.json")
-        guard files.fileExists(atPath: registry.path) else { return [.existing] }
+        guard files.fileExists(atPath: registry.path) else { return [] }
         let saved = try JSONDecoder().decode([ClaudeProfile].self, from: Data(contentsOf: registry))
         guard Set(saved.map(\.id)).count == saved.count,
-              !saved.contains(where: { $0.id == ClaudeProfile.existing.id || $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+              !saved.contains(where: { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
         else { throw ClaudeProfileError.invalidRegistry }
-        return [.existing] + saved
+        return saved
     }
 
     func add(name: String) throws -> ClaudeProfile {
@@ -61,7 +61,8 @@ struct ClaudeProfileStore {
     func save(_ profile: ClaudeProfile) throws {
         let profiles = try load()
         guard !profiles.contains(where: { $0.id == profile.id }) else { throw ClaudeProfileError.invalidRegistry }
-        let data = try JSONEncoder().encode(Array(profiles.dropFirst()) + [profile])
+        try files.createDirectory(at: root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        let data = try JSONEncoder().encode(profiles + [profile])
         try data.write(to: root.appending(path: "profiles.json"), options: [.atomic, .completeFileProtectionUnlessOpen])
         try files.setAttributes([.posixPermissions: 0o600], ofItemAtPath: root.appending(path: "profiles.json").path)
     }
@@ -105,8 +106,9 @@ struct ClaudeProfileStore {
     }
 
     func launchArguments(for profile: ClaudeProfile, pending: Bool = false) throws -> [String] {
-        guard try pending || load().contains(profile) else { throw ClaudeProfileError.invalidRegistry }
+        // The normal desktop remains available for cancellation recovery without registering it.
         if profile.id == ClaudeProfile.existing.id { return [] }
+        guard try pending || load().contains(profile) else { throw ClaudeProfileError.invalidRegistry }
         let directory = directory(for: profile)
         let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard values.isDirectory == true, values.isSymbolicLink != true else {
@@ -311,6 +313,7 @@ final class ClaudeProfilesModel: ObservableObject {
         var closed = false
         do {
             // Validate everything before asking Claude to quit.
+            guard try store.load().contains(profile) else { throw ClaudeProfileError.invalidRegistry }
             let arguments = try store.launchArguments(for: profile)
             try await desktop.close()
             closed = true
