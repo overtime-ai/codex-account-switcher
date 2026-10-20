@@ -6,6 +6,7 @@ struct MenuBarPopover: View {
     @ObservedObject var model: AppModel
     @State private var page: PopoverPage = .accounts
     @State private var showsClaude = false
+    @State private var showsClaudeSettings = false
     @ObservedObject var claude: ClaudeProfilesModel
 
     var body: some View {
@@ -19,7 +20,12 @@ struct MenuBarPopover: View {
             .disabled(model.isMutating || model.isAddingAccount || claude.isOpening || claude.isAddingAccount)
 
             if showsClaude {
-                ClaudeProfilesView(model: claude)
+                if showsClaudeSettings {
+                    SettingsView(model: model) { showsClaudeSettings = false }
+                } else {
+                    ClaudeProfilesView(model: claude, settings: model.settings,
+                                       onSettings: { showsClaudeSettings = true }, onQuit: { NSApp.terminate(nil) })
+                }
             } else {
                 if let error = model.visibleError {
                     InlineErrorBanner(
@@ -231,7 +237,7 @@ private struct InlineErrorBanner: View {
     }
 }
 
-private struct FooterAction: View {
+struct FooterAction: View {
     let title: String
     let systemImage: String
     var shortcut: KeyboardShortcut?

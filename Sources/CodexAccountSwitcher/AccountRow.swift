@@ -169,7 +169,7 @@ struct AccountRow: View {
     }
 }
 
-private struct UsageBar: View {
+struct UsageBar: View {
     let remainingPercent: Int
 
     var body: some View {
