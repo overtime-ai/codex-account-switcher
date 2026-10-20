@@ -84,7 +84,7 @@ struct ClaudeProfileStore {
         return id.lowercased()
     }
 
-    private func configuration(for profile: ClaudeProfile) throws -> [String: Any]? {
+    func configuration(for profile: ClaudeProfile) throws -> [String: Any]? {
         let config = directory(for: profile).appending(path: "config.json")
         guard files.fileExists(atPath: config.path) else { return nil }
         let values = try config.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
@@ -173,22 +173,78 @@ final class ClaudeProfilesModel: ObservableObject {
     @Published private(set) var isOpening = false
     @Published private(set) var isAddingAccount = false
     @Published var error: String?
+    @Published private(set) var details: [UUID: ClaudeAccountDetails] = [:]
+    @Published private(set) var detailErrors: [UUID: String] = [:]
+    @Published private(set) var isRefreshingDetails = false
+    @Published private(set) var needsDetailsAccess = false
+    private let reader: ClaudeAccountReader
+    private var lastDetailsAttempt: Date?
     private let store: ClaudeProfileStore
     private let desktop: any ClaudeDesktopControlling
     private var addTask: Task<Void, Never>?
     private var lastOpened: ClaudeProfile = .existing
 
-    init(store: ClaudeProfileStore = ClaudeProfileStore(), desktop: any ClaudeDesktopControlling = ClaudeDesktopController()) {
+    init(store: ClaudeProfileStore = ClaudeProfileStore(), desktop: any ClaudeDesktopControlling = ClaudeDesktopController(),
+         reader: ClaudeAccountReader = ClaudeAccountReader()) {
         self.store = store
         self.desktop = desktop
+        self.reader = reader
     }
 
     func load() {
         do {
             profiles = try store.load()
             lastOpened = try store.lastOpened()
+            let cache = store.root.appending(path: "account-details.json")
+            if FileManager.default.fileExists(atPath: cache.path) {
+                let saved = try JSONDecoder().decode([UUID: ClaudeAccountDetails].self, from: Data(contentsOf: cache))
+                details = try saved.filter { id, detail in
+                    guard let profile = profiles.first(where: { $0.id == id }) else { return false }
+                    return try store.accountID(for: profile) == detail.accountID
+                }
+            }
         }
         catch { self.error = error.localizedDescription }
+    }
+
+    func displayName(_ profile: ClaudeProfile) -> String { details[profile.id]?.email ?? profile.name }
+
+    func refreshDetails(allowKeychainPrompt: Bool = false) async {
+        guard !isRefreshingDetails, !isAddingAccount, !isOpening else { return }
+        guard allowKeychainPrompt || lastDetailsAttempt.map({ Date().timeIntervalSince($0) >= 300 }) ?? true else { return }
+        isRefreshingDetails = true
+        lastDetailsAttempt = Date()
+        defer { isRefreshingDetails = false }
+        for profile in profiles {
+            do {
+                guard let id = try store.accountID(for: profile), let config = try store.configuration(for: profile) else {
+                    throw ClaudeDetailsError.login
+                }
+                if details[profile.id]?.accountID != id { details[profile.id] = nil }
+                let encrypted = config.compactMapValues { $0 as? String }
+                var result = try await reader.read(configuration: encrypted, accountID: id, allowPrompt: allowKeychainPrompt)
+                if result.usageError != nil, let previous = details[profile.id], previous.accountID == id {
+                    result.weekly = previous.weekly
+                    result.fiveHour = previous.fiveHour
+                    result.updatedAt = previous.updatedAt
+                }
+                details[profile.id] = result
+                detailErrors[profile.id] = result.usageError
+                needsDetailsAccess = false
+            } catch {
+                detailErrors[profile.id] = error.localizedDescription
+                if case ClaudeDetailsError.keychain = error {
+                    needsDetailsAccess = true
+                    break
+                }
+            }
+        }
+        do {
+            try FileManager.default.createDirectory(at: store.root, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            let cache = store.root.appending(path: "account-details.json")
+            try JSONEncoder().encode(details).write(to: cache, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: cache.path)
+        } catch { self.error = "Account details could not be cached: \(error.localizedDescription)" }
     }
 
     func addAccount() {
@@ -199,6 +255,7 @@ final class ClaudeProfilesModel: ObservableObject {
             await performAddAccount()
             isAddingAccount = false
             addTask = nil
+            await refreshDetails()
         }
     }
 
@@ -225,6 +282,7 @@ final class ClaudeProfilesModel: ObservableObject {
                     try await desktop.launch(arguments: try store.launchArguments(for: profile))
                     lastOpened = profile
                     try store.recordOpened(profile)
+                    lastDetailsAttempt = nil
                     return
                 }
                 try await Task.sleep(for: .milliseconds(750))
