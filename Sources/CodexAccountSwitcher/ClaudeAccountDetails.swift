@@ -1,5 +1,6 @@
 import CommonCrypto
 import Foundation
+import LocalAuthentication
 import Security
 
 struct ClaudeAccountDetails: Codable, Equatable, Sendable {
@@ -32,13 +33,16 @@ enum ClaudeDetailsError: LocalizedError {
 
 // Chromium's macOS v10 safeStorage format; no credentials or encryption keys are written back.
 struct ClaudeSafeStorage {
-    static func key() throws -> Data {
+    static func key(allowPrompt: Bool) throws -> Data {
         var result: CFTypeRef?
+        let context = LAContext()
+        context.interactionNotAllowed = !allowPrompt
         let query: [CFString: Any] = [
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: "Claude Safe Storage",
             kSecReturnData: true,
             kSecMatchLimit: kSecMatchLimitOne,
+            kSecUseAuthenticationContext: context,
         ]
         let status = SecItemCopyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess, let password = result as? Data else { throw ClaudeDetailsError.keychain }
@@ -98,10 +102,10 @@ private final class ClaudeNoRedirects: NSObject, URLSessionTaskDelegate, Sendabl
 actor ClaudeAccountReader {
     typealias Transport = @Sendable (URLRequest) async throws -> (Data, HTTPURLResponse)
     private let transport: Transport
-    private let keyProvider: @Sendable () throws -> Data
+    private let keyProvider: @Sendable (Bool) throws -> Data
     private var key: Data?
 
-    init(keyProvider: @escaping @Sendable () throws -> Data = ClaudeSafeStorage.key,
+    init(keyProvider: @escaping @Sendable (Bool) throws -> Data = ClaudeSafeStorage.key,
          transport: @escaping Transport = ClaudeAccountReader.request) {
         self.keyProvider = keyProvider
         self.transport = transport
@@ -109,9 +113,8 @@ actor ClaudeAccountReader {
 
     func read(configuration: [String: String], accountID: String, allowPrompt: Bool) async throws -> ClaudeAccountDetails {
         if key == nil {
-            // Never initiate a potentially blocking Keychain ACL request during background refresh.
-            guard allowPrompt else { throw ClaudeDetailsError.keychain }
-            key = try keyProvider()
+            // Reuse macOS's existing grant after restart without allowing background prompts.
+            key = try keyProvider(allowPrompt)
         }
         var entries: [String: Any] = [:]
         for name in ["oauth:tokenCache", "oauth:tokenCacheV2"] {
