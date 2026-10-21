@@ -118,4 +118,38 @@ struct ClaudeHistoryTests {
         #expect(throws: (any Error).self) { try ClaudeHistory(store: f.store).synchronize(to: f.work) }
         #expect(try Data(contentsOf: f.code(f.work)) == target)
     }
+
+    @Test func nativeHistoryForSavedAccountIsSharedWithoutRegisteringOrChangingDefault() throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        // Match the real setup: only isolated accounts are registered, but native Claude has newer work.
+        let saved = try f.store.add(name: "Saved native account")
+        try f.write(["lastKnownAccountUuid": f.account], to: f.store.directory(for: saved).appending(path: "config.json"))
+        let registry = f.store.root.appending(path: "profiles.json")
+        try JSONEncoder().encode([saved, f.work]).write(to: registry)
+        try f.writeSession(.existing, activity: 3)
+        try f.writeSession(f.work, activity: 1)
+        try f.write(["spaces": [["id": f.project, "name": "Native project", "updatedAt": 3]]], to: f.spaces(.existing))
+        let original = try Data(contentsOf: f.code(.existing))
+        let history = ClaudeHistory(store: f.store)
+        try history.synchronize(to: f.work)
+        #expect(try f.read(f.code(f.work))["lastActivityAt"] as? Int == 3)
+        #expect(try (f.read(f.spaces(f.work))["spaces"] as? [[String: Any]])?.first?["name"] as? String == "Native project")
+        #expect(try Data(contentsOf: f.code(.existing)) == original)
+        #expect(try f.store.load() == [saved, f.work])
+
+        // Missing native metadata must not propagate deletion into the saved profiles.
+        try FileManager.default.removeItem(at: f.code(.existing))
+        try history.synchronize(to: f.work)
+        #expect(FileManager.default.fileExists(atPath: f.code(f.work).path))
+    }
+
+    @Test func unregisteredNativeAccountIsNotImported() throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        try JSONEncoder().encode([f.work]).write(to: f.store.root.appending(path: "profiles.json"))
+        try f.writeSession(.existing)
+        #expect(try ClaudeHistory(store: f.store).synchronize(to: f.work) == 0)
+        #expect(!FileManager.default.fileExists(atPath: f.code(f.work).path))
+    }
 }

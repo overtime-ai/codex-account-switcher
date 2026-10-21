@@ -54,7 +54,14 @@ struct ClaudeHistory {
         guard profiles.contains(target) else { throw ClaudeProfileError.invalidRegistry }
         let targets = try scopes(for: target)
         guard !targets.isEmpty else { throw ClaudeProfileError.codeNotReady }
-        let all = try profiles.flatMap { try scopes(for: $0) }
+        var sources = profiles
+        // Native launches still write here; include it only for an explicitly saved account.
+        if !profiles.contains(where: { $0.id == ClaudeProfile.existing.id }),
+           let account = try store.accountID(for: .existing),
+           try profiles.contains(where: { try store.accountID(for: $0) == account }) {
+            sources.append(.existing)
+        }
+        let all = try sources.flatMap { try scopes(for: $0) }
         let stateURL = store.root.appending(path: "history-state.json")
         var state = try files.fileExists(atPath: stateURL.path)
             ? JSONDecoder().decode(State.self, from: checkedData(stateURL)) : State()
@@ -64,7 +71,8 @@ struct ClaudeHistory {
 
         // Read and validate all metadata before changing any destination.
         for scope in all {
-            if let previous = state.scopes[scope.key],
+            let tracksDeletions = profiles.contains(scope.profile)
+            if tracksDeletions, let previous = state.scopes[scope.key],
                (!previous.sessions.isEmpty && !files.fileExists(atPath: scope.code.path)) ||
                 (!previous.projects.isEmpty && !files.fileExists(atPath: scope.spaces.path)) {
                 throw ClaudeProfileError.invalidHistory
@@ -107,11 +115,11 @@ struct ClaudeHistory {
                 if newer(record, than: projects[id], timeKey: "updatedAt") { projects[id] = record }
             }
             let seen = Seen(sessions: Set(entries.keys), projects: projectIDs)
-            if let previous = state.scopes[scope.key] {
+            if tracksDeletions, let previous = state.scopes[scope.key] {
                 state.deletedSessions.formUnion(previous.sessions.subtracting(seen.sessions))
                 state.deletedProjects.formUnion(previous.projects.subtracting(seen.projects))
             }
-            state.scopes[scope.key] = seen
+            if tracksDeletions { state.scopes[scope.key] = seen }
             contents[scope.key] = (entries, projectFile)
         }
 

@@ -95,9 +95,9 @@ private actor ClaudeDetailsServer {
 }
 
 extension ClaudeAccountDetailsTests {
-    @Test func backgroundRefreshNeverTriggersKeychainAccess() async throws {
-        let reader = ClaudeAccountReader(keyProvider: {
-            Issue.record("Background refresh must not ask Keychain for access")
+    @Test func backgroundRefreshDisallowsKeychainPrompts() async throws {
+        let reader = ClaudeAccountReader(keyProvider: { allowPrompt in
+            #expect(!allowPrompt)
             throw ClaudeDetailsError.keychain
         })
         await #expect(throws: ClaudeDetailsError.self) {
@@ -114,11 +114,17 @@ extension ClaudeAccountDetailsTests {
         let config: [String: Any] = ["lastKnownAccountUuid": account, "oauth:tokenCacheV2": try encryptedAccountFixture(key: key, account: account)]
         try JSONSerialization.data(withJSONObject: config).write(to: store.existingData.appending(path: "config.json"))
         let server = ClaudeDetailsServer()
-        let reader = ClaudeAccountReader(keyProvider: { key }, transport: { try await server.respond($0) })
+        let reader = ClaudeAccountReader(keyProvider: { allowPrompt in
+            guard allowPrompt else { throw ClaudeDetailsError.keychain }
+            return key
+        }, transport: { try await server.respond($0) })
         try store.save(.existing)
         let model = ClaudeProfilesModel(store: store, reader: reader)
         model.load()
+        await model.refreshDetails()
+        #expect(model.needsDetailsAccess)
         await model.refreshDetails(allowKeychainPrompt: true)
+        #expect(!model.needsDetailsAccess)
         #expect(model.displayName(.existing) == "work@example.com")
         #expect(model.details[ClaudeProfile.existing.id]?.weekly?.remainingPercent == 80)
         #expect(model.details[ClaudeProfile.existing.id]?.fiveHour?.remainingPercent == 65)
@@ -134,7 +140,18 @@ extension ClaudeAccountDetailsTests {
         let reloaded = ClaudeProfilesModel(store: store, reader: reader)
         reloaded.load()
         #expect(reloaded.displayName(.existing) == "work@example.com")
+        // A new reader represents an app restart: existing permission must work silently.
+        let restartedReader = ClaudeAccountReader(keyProvider: { allowPrompt in
+            #expect(!allowPrompt)
+            return key
+        }, transport: { try await server.respond($0) })
+        let restarted = ClaudeProfilesModel(store: store, reader: restartedReader)
+        restarted.load()
+        await restarted.refreshDetails()
+        #expect(!restarted.needsDetailsAccess)
+        #expect(restarted.displayName(.existing) == "work@example.com")
+        #expect(restarted.details[ClaudeProfile.existing.id]?.weekly?.remainingPercent == 80)
         await model.refreshDetails()
-        #expect(await server.requests == 4)
+        #expect(await server.requests == 6)
     }
 }

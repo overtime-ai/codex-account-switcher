@@ -58,14 +58,16 @@ struct ClaudeProfilesView: View {
             .disabled(model.isOpening || model.isAddingAccount)
 
             Divider()
-            if model.needsDetailsAccess {
+            if managesAccounts && model.needsDetailsAccess {
                 Button("Enable Email & Usage") {
                     Task { await model.refreshDetails(allowKeychainPrompt: true) }
                 }
                 .padding(10)
                 .disabled(model.isRefreshingDetails || model.isAddingAccount || model.isOpening)
                 Text("macOS may ask to allow access to Claude Safe Storage.")
-                    .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 8)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10).padding(.bottom, 8)
                 Divider()
             }
             if managesAccounts {
@@ -134,7 +136,7 @@ struct ClaudeProfilesView: View {
 
     @ViewBuilder private func usageContent(_ profile: ClaudeProfile) -> some View {
         let details = model.details[profile.id]
-        let error = model.detailErrors[profile.id] ?? (model.needsDetailsAccess ? "Enable account details to refresh saved usage." : nil)
+        let error = model.detailErrors[profile.id] ?? (model.needsDetailsAccess ? "Open Manage Accounts to enable email and usage." : nil)
         if let organization = details?.organizationName {
             Text(organization).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
         }
