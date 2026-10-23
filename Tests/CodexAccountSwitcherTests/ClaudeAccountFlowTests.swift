@@ -8,8 +8,10 @@ struct ClaudeAccountFlowTests {
         var events: [String] = []
         var onLaunch: ([String]) throws -> Void = { _ in }
         var failsToClose = false
-        func close() async throws {
+        var closedProcesses: [pid_t?] = []
+        func close(processIdentifier: pid_t?) async throws {
             events.append("close")
+            closedProcesses.append(processIdentifier)
             if failsToClose { throw ClaudeProfileError.quitFailed }
         }
         func launch(arguments: [String]) async throws {
@@ -89,5 +91,85 @@ struct ClaudeAccountFlowTests {
         try JSONSerialization.data(withJSONObject: ["lastKnownAccountUuid": "11111111-1111-1111-1111-111111111111"]).write(to: store.directory(for: pending).appending(path: "config.json"))
         #expect(try store.signedInProfile(pending) == nil)
         #expect(try store.load().isEmpty)
+    }
+
+    private func saveSelectedAccount(_ store: ClaudeProfileStore) throws -> ClaudeProfile {
+        let profile = try store.add(name: "Selected")
+        try JSONSerialization.data(withJSONObject: ["lastKnownAccountUuid": "11111111-1111-1111-1111-111111111111"])
+            .write(to: store.directory(for: profile).appending(path: "config.json"))
+        try store.recordOpened(profile)
+        return profile
+    }
+
+    @Test func defaultRelaunchRestoresSelectedAccountWithoutSynchronizingOrChangingFiles() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let selected = try saveSelectedAccount(store)
+        // Deliberately invalid history: recovery must not invoke the synchronizer at all.
+        let history = store.root.appending(path: "history-state.json")
+        let original = Data("untouched history".utf8)
+        try original.write(to: history)
+        let registry = try Data(contentsOf: store.root.appending(path: "profiles.json"))
+        let config = try Data(contentsOf: store.directory(for: selected).appending(path: "config.json"))
+        desktop.onLaunch = { arguments in
+            #expect(arguments == ["--user-data-dir=\(store.directory(for: selected).path)"])
+        }
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in true })
+        #expect(desktop.events == ["close", "open"])
+        #expect(desktop.closedProcesses == [123])
+        #expect(model.error == nil)
+        #expect(!model.isOpening)
+        #expect(try store.lastOpened() == selected)
+        #expect(try Data(contentsOf: history) == original)
+        #expect(try Data(contentsOf: store.root.appending(path: "profiles.json")) == registry)
+        #expect(try Data(contentsOf: store.directory(for: selected).appending(path: "config.json")) == config)
+    }
+
+    @Test func explicitProfileLaunchOrUnknownProcessIsLeftAlone() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try saveSelectedAccount(store)
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in false })
+        #expect(desktop.events.isEmpty)
+        #expect(model.error == nil)
+    }
+
+    @Test func defaultLaunchWithoutSelectedAccountIsLeftAlone() async throws {
+        let (root, _, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in true })
+        #expect(desktop.events.isEmpty)
+        #expect(model.error == nil)
+    }
+
+    @Test func defaultRelaunchDoesNotProceedIfQuitFailsOrProfileIsMissing() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let selected = try saveSelectedAccount(store)
+        desktop.failsToClose = true
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in true })
+        #expect(desktop.events == ["close"])
+        #expect(model.error != nil)
+        #expect(try store.lastOpened() == selected)
+        desktop.events = []
+        try FileManager.default.removeItem(at: store.directory(for: selected))
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in true })
+        #expect(desktop.events.isEmpty)
+        #expect(model.error != nil)
+    }
+
+    @Test func addingAccountIsNotInterruptedByLaunchRecovery() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try saveSelectedAccount(store)
+        model.load()
+        model.addAccount()
+        await model.restoreDefaultLaunch(processIdentifier: 123, usesDefaultProfile: { _ in
+            Issue.record("Account registration must not trigger launch recovery")
+            return true
+        })
+        model.cancelAddingAccount()
+        for _ in 0..<500 where model.isAddingAccount { try await Task.sleep(for: .milliseconds(1)) }
+        #expect(!desktop.closedProcesses.contains(123))
     }
 }

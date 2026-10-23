@@ -24,6 +24,12 @@ struct SwitcherApp: App {
                 .task {
                     await model.startBackgroundUsageRefresh()
                 }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didLaunchApplicationNotification)) { notification in
+                    guard let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                          application.bundleIdentifier == "com.anthropic.claudefordesktop" else { return }
+                    let pid = application.processIdentifier
+                    Task { await claude.restoreDefaultLaunch(processIdentifier: pid) }
+                }
         }
         .menuBarExtraStyle(.window)
         .commands {
