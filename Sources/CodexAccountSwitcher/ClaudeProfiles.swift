@@ -140,22 +140,45 @@ enum ClaudeProfileError: LocalizedError {
 
 @MainActor
 protocol ClaudeDesktopControlling {
-    func close() async throws
+    func close(processIdentifier: pid_t?) async throws
     func launch(arguments: [String]) async throws
 }
 
 struct ClaudeDesktopController: ClaudeDesktopControlling {
-    func close() async throws {
+    func close(processIdentifier: pid_t?) async throws {
         let running = NSRunningApplication.runningApplications(withBundleIdentifier: "com.anthropic.claudefordesktop")
+            .filter { processIdentifier == nil || $0.processIdentifier == processIdentifier }
+        if processIdentifier != nil, running.isEmpty { throw ClaudeProfileError.quitFailed }
         for application in running where !application.isTerminated {
             guard application.terminate() || application.isTerminated else { throw ClaudeProfileError.quitFailed }
         }
         do {
             try await DesktopQuitWaiter().wait {
-                !NSRunningApplication.runningApplications(withBundleIdentifier: "com.anthropic.claudefordesktop").isEmpty
+                NSRunningApplication.runningApplications(withBundleIdentifier: "com.anthropic.claudefordesktop")
+                    .contains { processIdentifier == nil || $0.processIdentifier == processIdentifier }
             }
         } catch is CancellationError { throw CancellationError() }
         catch { throw ClaudeProfileError.quitFailed }
+    }
+
+    nonisolated static func usesDefaultProfile(processIdentifier: pid_t) async -> Bool {
+        await Task.detached {
+            let process = Process()
+            let output = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/bin/ps")
+            process.arguments = ["-ww", "-p", String(processIdentifier), "-o", "command="]
+            process.standardOutput = output
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                guard process.terminationStatus == 0,
+                      let command = String(data: data, encoding: .utf8),
+                      !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+                return !command.contains("--user-data-dir")
+            } catch { return false }
+        }.value
     }
 
     func launch(arguments: [String]) async throws {
@@ -263,20 +286,40 @@ final class ClaudeProfilesModel: ObservableObject {
 
     func cancelAddingAccount() { addTask?.cancel() }
 
+    func restoreDefaultLaunch(processIdentifier: pid_t,
+                              usesDefaultProfile: @Sendable (pid_t) async -> Bool = ClaudeDesktopController.usesDefaultProfile) async {
+        guard !isOpening, !isAddingAccount else { return }
+        isOpening = true
+        defer { isOpening = false }
+        do {
+            let profile = try store.lastOpened()
+            guard profile.id != ClaudeProfile.existing.id else { return }
+            let arguments = try store.launchArguments(for: profile)
+            guard try store.accountID(for: profile) != nil else { throw ClaudeProfileError.invalidRegistry }
+            guard await usesDefaultProfile(processIdentifier) else { return }
+            // Only correct this new process. Never synchronize history or stop another profile.
+            try await desktop.close(processIdentifier: processIdentifier)
+            try await desktop.launch(arguments: arguments)
+            lastOpened = profile
+        } catch {
+            self.error = "Could not reopen your selected Claude account: \(error.localizedDescription)"
+        }
+    }
+
     private func performAddAccount() async {
         let previous = lastOpened
         var signInLaunched = false
         do {
             let pending = try store.createPending()
             let arguments = try store.launchArguments(for: pending, pending: true)
-            try await desktop.close()
+            try await desktop.close(processIdentifier: nil)
             signInLaunched = true
             try Task.checkCancellation()
             try await desktop.launch(arguments: arguments + ["claude://code"])
             while true {
                 try Task.checkCancellation()
                 if let profile = try store.signedInProfile(pending) {
-                    try await desktop.close()
+                    try await desktop.close(processIdentifier: nil)
                     try Task.checkCancellation()
                     try store.save(profile)
                     profiles = try store.load()
@@ -294,7 +337,7 @@ final class ClaudeProfilesModel: ObservableObject {
             if signInLaunched {
                 // Cancellation must not cancel the attempt to restore the previous desktop profile.
                 let restoration = Task { @MainActor in
-                    try await desktop.close()
+                    try await desktop.close(processIdentifier: nil)
                     try await desktop.launch(arguments: try store.launchArguments(for: previous))
                 }
                 do { try await restoration.value }
@@ -315,7 +358,7 @@ final class ClaudeProfilesModel: ObservableObject {
             // Validate everything before asking Claude to quit.
             guard try store.load().contains(profile) else { throw ClaudeProfileError.invalidRegistry }
             let arguments = try store.launchArguments(for: profile)
-            try await desktop.close()
+            try await desktop.close(processIdentifier: nil)
             closed = true
             try ClaudeHistory(store: store).synchronize(to: profile)
             try await desktop.launch(arguments: arguments)
