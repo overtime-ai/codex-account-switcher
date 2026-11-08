@@ -120,7 +120,7 @@ struct ClaudeProfileStore {
 
 enum ClaudeProfileError: LocalizedError {
     case invalidRegistry, invalidName, duplicateName, missingDirectory, appMissing, quitFailed
-    case codeNotReady, invalidHistory, unsupportedHistory, duplicateAccount
+    case codeNotReady, invalidHistory, duplicateAccount
 
     var errorDescription: String? {
         switch self {
@@ -132,7 +132,6 @@ enum ClaudeProfileError: LocalizedError {
         case .quitFailed: "Claude did not finish quitting. Finish or stop active tasks, close Claude, and try again. Your saved profiles have not changed."
         case .codeNotReady: "Open the Code tab in this Claude account once, then try switching again."
         case .invalidHistory: "Claude's local history metadata is invalid or contains a link. Switching stopped; restore the metadata before retrying."
-        case .unsupportedHistory: "A remote or isolated Code session needs Claude's native import. Switching stopped without changing history."
         case .duplicateAccount: "This Claude account is already saved. Choose it from the account list."
         }
     }
@@ -310,6 +309,7 @@ final class ClaudeProfilesModel: ObservableObject {
         let previous = lastOpened
         var signInLaunched = false
         do {
+            let history = ClaudeHistory(store: store)
             let pending = try store.createPending()
             let arguments = try store.launchArguments(for: pending, pending: true)
             try await desktop.close(processIdentifier: nil)
@@ -323,10 +323,11 @@ final class ClaudeProfilesModel: ObservableObject {
                     try Task.checkCancellation()
                     try store.save(profile)
                     profiles = try store.load()
-                    try ClaudeHistory(store: store).synchronize(to: profile)
+                    try history.synchronize(to: profile)
                     try await desktop.launch(arguments: try store.launchArguments(for: profile))
                     lastOpened = profile
                     try store.recordOpened(profile)
+                    signInLaunched = false
                     lastDetailsAttempt = nil
                     return
                 }
@@ -355,13 +356,15 @@ final class ClaudeProfilesModel: ObservableObject {
         let previous = lastOpened
         var closed = false
         do {
-            // Validate everything before asking Claude to quit.
+            // Validate the selected profile before asking Claude to quit.
             guard try store.load().contains(profile) else { throw ClaudeProfileError.invalidRegistry }
             let arguments = try store.launchArguments(for: profile)
+            let history = ClaudeHistory(store: store)
             try await desktop.close(processIdentifier: nil)
             closed = true
-            try ClaudeHistory(store: store).synchronize(to: profile)
+            try history.synchronize(to: profile)
             try await desktop.launch(arguments: arguments)
+            closed = false
             lastOpened = profile
             try store.recordOpened(profile)
         } catch {
@@ -373,4 +376,5 @@ final class ClaudeProfilesModel: ObservableObject {
             self.error = original.localizedDescription
         }
     }
+
 }

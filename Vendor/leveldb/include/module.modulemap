@@ -1,0 +1,4 @@
+module CLevelDB {
+    header "leveldb/c.h"
+    export *
+}

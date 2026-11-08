@@ -172,4 +172,33 @@ struct ClaudeAccountFlowTests {
         for _ in 0..<500 where model.isAddingAccount { try await Task.sleep(for: .milliseconds(1)) }
         #expect(!desktop.closedProcesses.contains(123))
     }
+
+    @Test func accountSwitchTransfersPinsWithoutAccessibilityOrAccountDetails() async throws {
+        let (root, store, desktop, model) = try fixture()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try store.save(.existing)
+        let target = try store.add(name: "Target")
+        let org = "33333333-3333-3333-3333-333333333333"
+        for (profile, account) in [(ClaudeProfile.existing, "11111111-1111-1111-1111-111111111111"),
+                                    (target, "22222222-2222-2222-2222-222222222222")] {
+            let directory = store.directory(for: profile)
+            let code = directory.appending(path: "claude-code-sessions/\(account)/\(org)")
+            try FileManager.default.createDirectory(at: code, withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: ["lastKnownAccountUuid": account])
+                .write(to: directory.appending(path: "config.json"))
+            if profile == .existing {
+                let id = "local_44444444-4444-4444-4444-444444444444"
+                try JSONSerialization.data(withJSONObject: ["sessionId": id,
+                    "cliSessionId": "55555555-5555-5555-5555-555555555555", "cwd": "/repo", "lastActivityAt": 1,
+                    "title": "Keep my thread", "isStarred": true, "error": "You've hit your session limit"])
+                    .write(to: code.appending(path: "\(id).json"))
+            }
+        }
+        model.load()
+        await model.open(target)
+        #expect(desktop.events == ["close", "open"])
+        #expect(try store.lastOpened() == target)
+        #expect(!model.isOpening)
+        #expect(model.error == nil)
+    }
 }

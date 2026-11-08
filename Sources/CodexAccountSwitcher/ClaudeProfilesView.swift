@@ -130,7 +130,7 @@ struct ClaudeProfilesView: View {
         ), titleVisibility: .visible, presenting: pending) { profile in
             Button("Switch Account") { Task { await model.open(profile) } }
         } message: { _ in
-            Text("Finish or stop active tasks first. Claude will quit and reopen with the same local Code chats and project groupings. Continuing a chat sends its context under the selected account. Custom profiles may limit Chrome pairing.")
+            Text("Finish or stop active tasks first. Claude will reopen with your Code chats, saved pins, and Automatic mode. Open SSH chats and resume usage-stalled work in Claude after switching. Continuing sends chat context under the selected account. Custom profiles may limit Chrome pairing.")
         }
     }
 
