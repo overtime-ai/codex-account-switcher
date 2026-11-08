@@ -9,6 +9,43 @@ struct ClaudeProfilesView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let profile = pending {
+                PopoverHeader(title: "Switch to \(model.displayName(profile))?", backTitle: "Cancel") { pending = nil }
+                Divider()
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Finish or stop active tasks first. Claude will reopen with your Code chats, saved pins, and Automatic mode. Open SSH chats and resume usage-stalled work in Claude after switching. Continuing sends chat context under the selected account. Custom profiles may limit Chrome pairing.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 7) {
+                        Button("Cancel") { pending = nil }
+                            .buttonStyle(.bordered)
+                            .frame(maxWidth: .infinity)
+                        Button("Switch Account") {
+                            pending = nil
+                            Task { await model.open(profile) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(14)
+                .disabled(model.isOpening || model.isAddingAccount)
+            } else {
+                accounts
+            }
+        }
+        .task {
+            model.load()
+            while !Task.isCancelled {
+                await model.refreshDetails()
+                do { try await Task.sleep(for: .seconds(300)) } catch { break }
+            }
+        }
+    }
+
+    private var accounts: some View {
+        VStack(spacing: 0) {
             if managesAccounts {
                 PopoverHeader(title: "Claude Accounts", backTitle: "Back") { managesAccounts = false }
                 Divider()
@@ -117,20 +154,6 @@ struct ClaudeProfilesView: View {
                     Text("Switching Claude account…").font(.caption)
                 }.padding(10)
             }
-        }
-        .task {
-            model.load()
-            while !Task.isCancelled {
-                await model.refreshDetails()
-                do { try await Task.sleep(for: .seconds(300)) } catch { break }
-            }
-        }
-        .confirmationDialog("Switch to \(pending.map(model.displayName) ?? "Claude")?", isPresented: Binding(
-            get: { pending != nil }, set: { if !$0 { pending = nil } }
-        ), titleVisibility: .visible, presenting: pending) { profile in
-            Button("Switch Account") { Task { await model.open(profile) } }
-        } message: { _ in
-            Text("Finish or stop active tasks first. Claude will quit and reopen with the same local Code chats and project groupings. Continuing a chat sends its context under the selected account. Custom profiles may limit Chrome pairing.")
         }
     }
 

@@ -1,5 +1,6 @@
 import CommonCrypto
 import Foundation
+import Security
 import Testing
 @testable import CodexAccountSwitcher
 
@@ -95,6 +96,27 @@ private actor ClaudeDetailsServer {
 }
 
 extension ClaudeAccountDetailsTests {
+    @Test func legacyKeychainInteractionIsScopedAndRestoredAfterFailure() throws {
+        try ClaudeSafeStorage.withKeychainInteraction(allowPrompt: false) {
+            var allowed = DarwinBoolean(true)
+            #expect(SecKeychainGetUserInteractionAllowed(&allowed) == errSecSuccess)
+            #expect(!allowed.boolValue)
+        }
+        var before = DarwinBoolean(false)
+        #expect(SecKeychainGetUserInteractionAllowed(&before) == errSecSuccess)
+        #expect(throws: ClaudeDetailsError.self) {
+            try ClaudeSafeStorage.withKeychainInteraction(allowPrompt: !before.boolValue) {
+                var allowed = DarwinBoolean(false)
+                #expect(SecKeychainGetUserInteractionAllowed(&allowed) == errSecSuccess)
+                #expect(allowed.boolValue != before.boolValue)
+                throw ClaudeDetailsError.keychain
+            }
+        }
+        var after = DarwinBoolean(false)
+        #expect(SecKeychainGetUserInteractionAllowed(&after) == errSecSuccess)
+        #expect(after.boolValue == before.boolValue)
+    }
+
     @Test func backgroundRefreshDisallowsKeychainPrompts() async throws {
         let reader = ClaudeAccountReader(keyProvider: { allowPrompt in
             #expect(!allowPrompt)

@@ -1,0 +1,4 @@
+module CSnappy {
+    header "snappy-c.h"
+    export *
+}

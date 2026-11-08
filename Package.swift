@@ -84,9 +84,16 @@ var targets: [Target] = [
 #if os(macOS)
 products.append(.executable(name: "CodexAccountSwitcher", targets: ["CodexAccountSwitcher"]))
 targets += [
+    .target(name: "CSnappy", path: "Vendor/snappy", exclude: ["LICENSE", "AUTHORS", "UPSTREAM.txt"],
+            sources: ["snappy.cc", "snappy-c.cc", "snappy-sinksource.cc", "snappy-stubs-internal.cc"], publicHeadersPath: "."),
+    .target(name: "CLevelDB", dependencies: ["CSnappy"], path: "Vendor/leveldb",
+            exclude: ["LICENSE", "AUTHORS", "UPSTREAM.txt"], sources: ["db", "table", "util"], publicHeadersPath: "include",
+            cxxSettings: [.headerSearchPath("."), .define("LEVELDB_PLATFORM_POSIX", to: "1"),
+                          .define("LEVELDB_IS_BIG_ENDIAN", to: "0"), .define("HAVE_SNAPPY", to: "1"),
+                          .define("HAVE_FULLFSYNC", to: "1"), .define("LEVELDB_COMPILE_LIBRARY")]),
     .executableTarget(
         name: "CodexAccountSwitcher",
-        dependencies: ["SwitcherCore"],
+        dependencies: ["SwitcherCore", "CLevelDB"],
         resources: [.process("Resources")],
         linkerSettings: [
             .linkedFramework("AppKit"),
@@ -107,5 +114,6 @@ let package = Package(
     ],
     products: products,
     dependencies: dependencies,
-    targets: targets
+    targets: targets,
+    cxxLanguageStandard: .cxx17
 )

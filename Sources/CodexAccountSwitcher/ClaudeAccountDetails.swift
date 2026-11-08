@@ -33,6 +33,18 @@ enum ClaudeDetailsError: LocalizedError {
 
 // Chromium's macOS v10 safeStorage format; no credentials or encryption keys are written back.
 struct ClaudeSafeStorage {
+    private static let interactionLock = NSLock()
+
+    static func withKeychainInteraction<T>(allowPrompt: Bool, _ body: () throws -> T) throws -> T {
+        try interactionLock.withLock {
+            var previous = DarwinBoolean(false)
+            guard SecKeychainGetUserInteractionAllowed(&previous) == errSecSuccess,
+                  SecKeychainSetUserInteractionAllowed(allowPrompt) == errSecSuccess else { throw ClaudeDetailsError.keychain }
+            defer { SecKeychainSetUserInteractionAllowed(previous.boolValue) }
+            return try body()
+        }
+    }
+
     static func key(allowPrompt: Bool) throws -> Data {
         var result: CFTypeRef?
         let context = LAContext()
@@ -44,7 +56,10 @@ struct ClaudeSafeStorage {
             kSecMatchLimit: kSecMatchLimitOne,
             kSecUseAuthenticationContext: context,
         ]
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        // LAContext does not suppress the legacy login-keychain ACL dialog used by Chromium.
+        let status = try withKeychainInteraction(allowPrompt: allowPrompt) {
+            SecItemCopyMatching(query as CFDictionary, &result)
+        }
         guard status == errSecSuccess, let password = result as? Data else { throw ClaudeDetailsError.keychain }
         return try deriveKey(password: password)
     }

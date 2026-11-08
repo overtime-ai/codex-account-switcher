@@ -30,6 +30,8 @@ chmod 0755 "$MACOS_DIR/CodexAccountSwitcher"
 ditto "$BUILD_DIR/$RESOURCE_BUNDLE" "$RESOURCES_DIR/$RESOURCE_BUNDLE"
 ditto "$APP_ICON" "$RESOURCES_DIR/AppIcon.icns"
 cp "$PROJECT_DIR/LICENSE" "$RESOURCES_DIR/LICENSE.txt"
+cp "$PROJECT_DIR/Vendor/leveldb/LICENSE" "$RESOURCES_DIR/LICENSE-leveldb.txt"
+cp "$PROJECT_DIR/Vendor/snappy/LICENSE" "$RESOURCES_DIR/LICENSE-snappy.txt"
 
 /usr/bin/plutil -create xml1 "$CONTENTS_DIR/Info.plist"
 /usr/bin/plutil -insert CFBundleDevelopmentRegion -string en "$CONTENTS_DIR/Info.plist"

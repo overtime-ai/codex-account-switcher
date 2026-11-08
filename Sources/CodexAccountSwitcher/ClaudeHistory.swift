@@ -66,6 +66,9 @@ struct ClaudeHistory {
         var state = try files.fileExists(atPath: stateURL.path)
             ? JSONDecoder().decode(State.self, from: checkedData(stateURL)) : State()
         var sessions: [String: Record] = [:]
+        let outgoing = try store.lastOpened()
+        var pinStates: [String: Bool] = [:]
+        var unsharedSessions = Set<String>()
         var projects: [String: Record] = [:]
         var contents: [String: ([String: [String: Any]], [String: Any])] = [:]
 
@@ -83,20 +86,33 @@ struct ClaudeHistory {
                 guard UUID(uuidString: String(id.dropFirst(6))) != nil else { continue }
                 let value = try object(url)
                 guard value["sessionId"] as? String == id,
-                      let cli = value["cliSessionId"] as? String, UUID(uuidString: cli) != nil,
                       value["lastActivityAt"] is NSNumber, value["cwd"] is String else {
                     throw ClaudeProfileError.invalidHistory
                 }
-                // Remote and isolated sessions need Claude's native import, not a copied local index.
-                guard value["sshConfig"] == nil, value["wslConfig"] == nil,
-                      !files.fileExists(atPath: scope.code.appending(path: id).path) else {
-                    throw ClaudeProfileError.unsupportedHistory
+                entries[id] = value
+                if scope.profile.id == outgoing.id { pinStates[id] = value["isStarred"] as? Bool ?? false }
+                // Claude can save the first request before allocating a transcript ID.
+                if isPendingSession(value) {
+                    unsharedSessions.insert(id)
+                    continue
                 }
-                if let old = sessions[id], old.value["cliSessionId"] as? String != cli {
+                guard let cli = value["cliSessionId"] as? String, UUID(uuidString: cli) != nil else {
                     throw ClaudeProfileError.invalidHistory
                 }
-                entries[id] = value
+                // WSL and isolated records stay in place; their IDs must never be copied or deleted.
+                if value["wslConfig"] != nil || files.fileExists(atPath: scope.code.appending(path: id).path) {
+                    unsharedSessions.insert(id)
+                    continue
+                }
                 let record = Record(scope: scope, value: value, modified: try modified(url))
+                if let old = sessions[id], let oldCLI = old.value["cliSessionId"] as? String, oldCLI != cli {
+                    // Claude rotates transcript IDs on restart; explicit lineage beats stale activity times.
+                    let descendsFromOld = priorTranscriptIDs(value).contains(oldCLI)
+                    let oldDescendsFromNew = priorTranscriptIDs(old.value).contains(cli)
+                    guard descendsFromOld != oldDescendsFromNew else { throw ClaudeProfileError.invalidHistory }
+                    if descendsFromOld { sessions[id] = record }
+                    continue
+                }
                 if newer(record, than: sessions[id], timeKey: "lastActivityAt") { sessions[id] = record }
             }
             var projectFile: [String: Any] = [:]
@@ -123,21 +139,18 @@ struct ClaudeHistory {
             contents[scope.key] = (entries, projectFile)
         }
 
+        state.deletedSessions.subtract(unsharedSessions)
+        var sharedPins = sessions.filter { !unsharedSessions.contains($0.key) }.mapValues { $0.value["isStarred"] as? Bool ?? false }
+        for (id, pinned) in pinStates where sharedPins[id] != nil { sharedPins[id] = pinned }
+        for id in state.deletedSessions { sharedPins[id] = false }
+        sharedPins = try ClaudePins.synchronize(store: store, from: outgoing, to: target, pins: sharedPins,
+                                              sourceIDs: Set(pinStates.keys).subtracting(state.deletedSessions))
         var writes: [(URL, Data?)] = []
         for targetScope in targets {
             let (existing, file) = contents[targetScope.key]!
-            for (id, record) in sessions where !state.deletedSessions.contains(id) {
-                var value = record.value
-                if record.scope.account != targetScope.account || record.scope.organization != targetScope.organization {
-                    // Account-bound cloud references and approvals must be rebuilt by the selected account.
-                    for key in ["userSelectedProjectUuids", "remoteMcpServersConfig", "alwaysAllowedReasons",
-                                "sessionPermissionUpdates", "promptAppendSnapshot", "toolSurfaceSnapshot",
-                                "remoteControlAutoEligible", "steeredByRemoteClient", "envScopeId", "spawnSeed"] {
-                        value.removeValue(forKey: key)
-                    }
-                    value["permissionMode"] = "default"
-                    value.removeValue(forKey: "chromePermissionMode")
-                }
+            for (id, record) in sessions where !state.deletedSessions.contains(id) && !unsharedSessions.contains(id) {
+                var value = sharedValue(record.value, from: record.scope, to: targetScope)
+                if let pinned = sharedPins[id] { value["isStarred"] = pinned }
                 if !NSDictionary(dictionary: existing[id] ?? [:]).isEqual(to: value) {
                     writes.append((targetScope.code.appending(path: "\(id).json"), try encode(value)))
                 }
@@ -166,6 +179,9 @@ struct ClaudeHistory {
                 projects: Set(projects.keys).subtracting(state.deletedProjects))
         }
 
+        // Excluded sessions must not become deletion signals on a later switch.
+        for key in state.scopes.keys { state.scopes[key]?.sessions.subtract(unsharedSessions) }
+
         // Keep originals before replacing/deleting metadata. Transcripts and project files are never edited.
         let backup = store.root.appending(path: "history-backups/\(UUID().uuidString)")
         for (index, write) in writes.enumerated() where files.fileExists(atPath: write.0.path) {
@@ -184,6 +200,54 @@ struct ClaudeHistory {
         try JSONEncoder().encode(state).write(to: stateURL, options: .atomic)
         try files.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stateURL.path)
         return writes.count
+    }
+
+    func importSSHSession(_ id: String, from source: ClaudeProfile, to target: ClaudeProfile) throws -> URL {
+        guard id.hasPrefix("local_"), UUID(uuidString: String(id.dropFirst(6))) != nil,
+              try store.load().contains(source), try store.load().contains(target) else { throw ClaudeProfileError.invalidRegistry }
+        let candidates = try scopes(for: source).filter { files.fileExists(atPath: $0.code.appending(path: "\(id).json").path) }
+        guard candidates.count == 1, let scope = candidates.first,
+              let destination = try scopes(for: target).first(where: { $0.organization == scope.organization }) else {
+            throw ClaudeProfileError.invalidHistory
+        }
+        let value = try object(scope.code.appending(path: "\(id).json"))
+        guard value["sessionId"] as? String == id,
+              let cli = value["cliSessionId"] as? String, UUID(uuidString: cli) != nil,
+              let ssh = value["sshConfig"] as? [String: Any], let host = ssh["sshHost"] as? String, !host.isEmpty,
+              value["cwd"] is String, value["lastActivityAt"] is NSNumber,
+              !files.fileExists(atPath: scope.code.appending(path: id).path) else { throw ClaudeProfileError.invalidHistory }
+        let output = destination.code.appending(path: "\(id).json")
+        try privateDirectory(destination.code)
+        let temporary = destination.code.appending(path: ".\(UUID().uuidString).tmp")
+        defer { try? files.removeItem(at: temporary) }
+        try encode(sharedValue(value, from: scope, to: destination)).write(to: temporary, options: .withoutOverwriting)
+        try files.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporary.path)
+        // A hard link installs the complete record atomically and fails if the destination already exists.
+        try files.linkItem(at: temporary, to: output)
+        return output
+    }
+
+    private func sharedValue(_ record: [String: Any], from source: Scope, to target: Scope) -> [String: Any] {
+        var value = record
+        if source.account != target.account || source.organization != target.organization {
+            // Keep the remote process ID for Claude's cleanup, but never reuse its old-account reconnect ticket.
+            for key in ["userSelectedProjectUuids", "remoteMcpServersConfig", "alwaysAllowedReasons",
+                        "sessionPermissionUpdates", "promptAppendSnapshot", "toolSurfaceSnapshot",
+                        "remoteControlAutoEligible", "steeredByRemoteClient", "envScopeId", "spawnSeed",
+                        "sshReattach", "chromePermissionMode"] { value.removeValue(forKey: key) }
+        }
+        value["permissionMode"] = "auto"
+        value["autoChosenInApp"] = true
+        value.removeValue(forKey: "bypassChosenInApp")
+        return value
+    }
+
+    private func isPendingSession(_ value: [String: Any]) -> Bool {
+        (value["cliSessionId"] == nil || value["cliSessionId"] is NSNull) && value["pendingFirstStart"] is [String: Any]
+    }
+
+    private func priorTranscriptIDs(_ value: [String: Any]) -> [String] {
+        (value["priorCliSessionIds"] as? [String] ?? []) + (value["priorRemoteCliSessionIds"] as? [String] ?? [])
     }
 
     private func newer(_ a: Record, than b: Record?, timeKey: String) -> Bool {
