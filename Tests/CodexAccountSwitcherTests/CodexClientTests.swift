@@ -123,8 +123,16 @@ struct CodexClientTests {
             "CODEX_SWITCHER_CODEX_PATH": "/bin/sh",
         ]) == fixture.executable)
         #expect(throws: CodexClientError.self) {
-            try CodexExecutableLocator().locate(environment: ["PATH": "/nonexistent"])
+            try CodexExecutableLocator(bundledURLs: []).locate(environment: ["PATH": "/nonexistent"])
         }
+    }
+
+    @Test func fallsBackToDesktopBundledCLIWhenPATHHasNoCodex() throws {
+        let fixture = try ScriptFixture(body: "exit 0")
+        defer { fixture.remove() }
+        let missing = URL(fileURLWithPath: "/nonexistent/codex")
+        #expect(try CodexExecutableLocator(bundledURLs: [missing, fixture.executable])
+            .locate(environment: ["PATH": "/nonexistent"]) == fixture.executable)
     }
 
     @Test func invalidDesktopOverrideDoesNotSilentlyUseAnotherRuntime() throws {

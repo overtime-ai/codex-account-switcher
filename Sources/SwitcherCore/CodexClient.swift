@@ -354,9 +354,18 @@ private actor JSONRPCSession {
 
 public struct CodexExecutableLocator: Sendable {
     public let explicitURL: URL?
+    /// Codex Desktop's bundled CLI, used when no `codex` is on the login shell's PATH. A switcher started
+    /// by launchd (login item, Finder, `open`) has no terminal environment to inherit one from.
+    public let bundledURLs: [URL]
 
-    public init(explicitURL: URL? = nil) {
+    public init(
+        explicitURL: URL? = nil,
+        bundledURLs: [URL] = ["/Applications/ChatGPT.app", "/Applications/Codex.app"].map {
+            URL(fileURLWithPath: "\($0)/Contents/Resources/codex-cli/bin/codex")
+        }
+    ) {
         self.explicitURL = explicitURL
+        self.bundledURLs = bundledURLs
     }
 
     public func locate(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> URL {
@@ -406,6 +415,9 @@ public struct CodexExecutableLocator: Sendable {
             .first(where: isExecutable)
         {
             return URL(fileURLWithPath: path)
+        }
+        if executable == "codex", let bundled = bundledURLs.first(where: { isExecutable($0.path) }) {
+            return bundled
         }
         #endif
         throw CodexClientError.executableNotFound
