@@ -7,7 +7,7 @@ This fork of [liuzhao1225/codex-account-switcher](https://github.com/liuzhao1225
 - Release packaging and GitHub Pages no longer generate or publish update feeds.
 - Existing update preferences cannot reactivate checks because the implementation is removed.
 - Account authentication, switching, and usage refresh through the installed Codex runtime remain available. This is not an offline build of Codex.
-- Codex Desktop keeps projects, SSH hosts and sidebar state per signed-in account (`electron-account-renderer-state-v1` in `.codex-global-state.json`) and hides it during startup until the login loads, which also skips SSH auto-connect. Before reopening Desktop, a switch removes that key so all saved accounts share one state and the switched-to launch auto-connects SSH hosts. Launches outside the switcher still hit the startup gap.
+- Codex Desktop keeps projects, SSH hosts and sidebar state per signed-in account (`electron-account-renderer-state-v1` in `.codex-global-state.json`) and hides it during startup until the login loads, which also skips SSH auto-connect. While the switcher runs, it removes that key whenever Desktop quits (and at startup if Desktop is closed), and a switch removes it before reopening Desktop, so every launch loads one shared state and auto-connects SSH hosts. Keep the switcher running at login.
 
 Build from this fork using the instructions in the root README. Updates require a new build or manually installing a release from `overtime-ai`. Upstream packages do not include these changes.
 

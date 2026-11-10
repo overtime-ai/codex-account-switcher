@@ -1,4 +1,5 @@
 import SwitcherCore
+import AppKit
 import Combine
 import Foundation
 import ServiceManagement
@@ -34,10 +35,38 @@ final class AppModel: AccountController, @MainActor ObservableObject {
     let objectWillChange = ObservableObjectPublisher()
     @Published private(set) var launchAtLoginState: LaunchAtLoginState = .disabled
 
+    private var codexQuitObserver: NSObjectProtocol?
+
     override init(store: AccountStore, codex: any AccountClient, switchService: any SwitchServicing) {
         super.init(store: store, codex: codex, switchService: switchService)
         onChange = { [weak self] in self?.objectWillChange.send() }
         refreshLaunchAtLoginStatus()
+        keepCodexDesktopStateShared(store: store)
+    }
+
+    /// Codex Desktop recreates its account-scoped state key on every launch, and the next launch then
+    /// skips SSH auto-connect. Clear it whenever Desktop is not running so every launch loads the shared
+    /// state, however Desktop is started (Dock, login item, update relaunch or a switch).
+    private func keepCodexDesktopStateShared(store: AccountStore) {
+        codexQuitObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            guard application?.bundleIdentifier == "com.openai.codex" else { return }
+            MainActor.assumeIsolated { self?.clearCodexDesktopStateKey(store: store) }
+        }
+        if NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.codex").isEmpty {
+            clearCodexDesktopStateKey(store: store)
+        }
+    }
+
+    private func clearCodexDesktopStateKey(store: AccountStore) {
+        Task {
+            do { try await store.shareDesktopState() } catch {
+                visibleError = OperationError(stage: nil, titleKey: "operation_failed", messageKey: nil,
+                                              message: error.localizedDescription, underlyingDescription: nil)
+            }
+        }
     }
 
     static func live() -> AppModel {
