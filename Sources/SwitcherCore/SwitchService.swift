@@ -102,6 +102,12 @@ public struct SwitchService: SwitchServicing {
         }
 
         do {
+            try await store.shareDesktopState()
+        } catch {
+            throw OperationError.stage(.shareDesktopState, error)
+        }
+
+        do {
             try await desktop.reopenDesktop()
         } catch {
             throw OperationError.stage(.reopenDesktop, error)

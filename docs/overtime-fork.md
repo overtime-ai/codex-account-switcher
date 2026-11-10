@@ -7,6 +7,7 @@ This fork of [liuzhao1225/codex-account-switcher](https://github.com/liuzhao1225
 - Release packaging and GitHub Pages no longer generate or publish update feeds.
 - Existing update preferences cannot reactivate checks because the implementation is removed.
 - Account authentication, switching, and usage refresh through the installed Codex runtime remain available. This is not an offline build of Codex.
+- Codex Desktop keeps projects, SSH hosts and sidebar state per signed-in account. Before reopening Desktop, a switch marks that state as owned by the selected account (`electron-account-renderer-state-v1` in `.codex-global-state.json`) and drops the selected account's stale stash, so all saved accounts share one state as they did before. macOS only; the Windows build leaves the file unchanged.
 
 Build from this fork using the instructions in the root README. Updates require a new build or manually installing a release from `overtime-ai`. Upstream packages do not include these changes.
 
