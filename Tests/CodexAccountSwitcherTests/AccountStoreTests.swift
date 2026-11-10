@@ -181,24 +181,17 @@ struct AccountStoreTests {
         }
     }
 
-    @Test func switchingKeepsCodexDesktopStateForTheTargetAccount() async throws {
+    @Test func switchingRemovesCodexDesktopAccountScopedStateOwner() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let profiles = try await prepareSwitchProfiles(fixture)
-        // id_token claims: chatgpt_user_id "user-target", chatgpt_account_id "account-target".
-        let claims = "eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOiB7ImNoYXRncHRfdXNlcl9pZCI6ICJ1c2VyLXRhcmdldCIsICJjaGF0Z3B0X2FjY291bnRfaWQiOiAiYWNjb3VudC10YXJnZXQifX0"
-        let targetHome = await fixture.store.profileHome(id: profiles.target.id)
-        try Data(#"{"accountId":"target-id","email":"target@example.com","tokens":{"id_token":"e30.\#(claims).sig"}}"#.utf8)
-            .write(to: targetHome.appending(path: "auth.json"))
-        // SHA-256 of ["user-target","account-target"], the owner Codex Desktop computes for the target.
-        let targetOwner = "14cbb6236e89bec3ea3882eb7b04c24d778af4e671e54689502d4baa42170cf6"
         let stateURL = fixture.activeHome.appending(path: ".codex-global-state.json")
         try JSONSerialization.data(withJSONObject: [
-            "codex-managed-remote-connections": [["hostId": "remote-ssh-discovered:devbox"]],
+            "remote-connection-auto-connect-by-host-id": ["remote-ssh-discovered:devbox": true],
             "electron-persisted-atom-state": ["sidebar-width": 433.5],
             "electron-account-renderer-state-v1": [
                 "owner": "original-owner",
-                "inactive": [targetOwner: ["atoms": [:], "globals": [:]], "other-owner": ["atoms": ["kept": true], "globals": [:]]],
+                "inactive": ["target-owner": ["atoms": [:], "globals": [:]]],
             ],
         ]).write(to: stateURL)
 
@@ -206,11 +199,8 @@ struct AccountStoreTests {
             .switchAccount(to: profiles.target.id)
 
         let state = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any])
-        let scoped = try #require(state["electron-account-renderer-state-v1"] as? [String: Any])
-        #expect(scoped["owner"] as? String == targetOwner)
-        let inactive = try #require(scoped["inactive"] as? [String: [String: [String: Bool]]])
-        #expect(inactive == ["other-owner": ["atoms": ["kept": true], "globals": [:]]])
-        #expect(state["codex-managed-remote-connections"] as? [[String: String]] == [["hostId": "remote-ssh-discovered:devbox"]])
+        #expect(Set(state.keys) == ["remote-connection-auto-connect-by-host-id", "electron-persisted-atom-state"])
+        #expect(state["remote-connection-auto-connect-by-host-id"] as? [String: Bool] == ["remote-ssh-discovered:devbox": true])
         #expect(state["electron-persisted-atom-state"] as? [String: Double] == ["sidebar-width": 433.5])
     }
 
