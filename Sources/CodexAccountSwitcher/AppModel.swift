@@ -44,23 +44,23 @@ final class AppModel: AccountController, @MainActor ObservableObject {
         keepCodexDesktopStateShared(store: store)
     }
 
-    /// Codex Desktop recreates its account-scoped state key on every launch, and the next launch then
-    /// skips SSH auto-connect. Clear it whenever Desktop is not running so every launch loads the shared
-    /// state, however Desktop is started (Dock, login item, update relaunch or a switch).
+    /// Codex Desktop loads only the signed-in account's state. Hand the last owner's state to the account in
+    /// `auth.json` whenever Desktop is not running, so every launch loads the shared state however Desktop
+    /// is started (Dock, login item, update relaunch or a switch).
     private func keepCodexDesktopStateShared(store: AccountStore) {
         codexQuitObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main
         ) { [weak self] notification in
             let application = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
             guard application?.bundleIdentifier == "com.openai.codex" else { return }
-            MainActor.assumeIsolated { self?.clearCodexDesktopStateKey(store: store) }
+            MainActor.assumeIsolated { self?.shareCodexDesktopState(store: store) }
         }
         if NSRunningApplication.runningApplications(withBundleIdentifier: "com.openai.codex").isEmpty {
-            clearCodexDesktopStateKey(store: store)
+            shareCodexDesktopState(store: store)
         }
     }
 
-    private func clearCodexDesktopStateKey(store: AccountStore) {
+    private func shareCodexDesktopState(store: AccountStore) {
         Task {
             do { try await store.shareDesktopState() } catch {
                 visibleError = OperationError(stage: nil, titleKey: "operation_failed", messageKey: nil,
