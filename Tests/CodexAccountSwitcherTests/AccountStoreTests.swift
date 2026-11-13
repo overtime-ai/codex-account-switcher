@@ -168,7 +168,7 @@ struct AccountStoreTests {
         for path in paths {
             let url = fixture.activeHome.appending(path: path)
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try Data("unchanged:\(path)".utf8).write(to: url)
+            try Data(#"{"unchanged":"\#(path)"}"#.utf8).write(to: url)
         }
         for target in [profiles.target, profiles.original] {
             try await SwitchService(
@@ -176,9 +176,50 @@ struct AccountStoreTests {
                 codex: StoreTestMatchingCodex()
             ).switchAccount(to: target.id)
             for path in paths {
-                #expect(try Data(contentsOf: fixture.activeHome.appending(path: path)) == Data("unchanged:\(path)".utf8))
+                #expect(try Data(contentsOf: fixture.activeHome.appending(path: path)) == Data(#"{"unchanged":"\#(path)"}"#.utf8))
             }
         }
+    }
+
+    @Test func switchingMovesCodexDesktopStateToTheTargetAccount() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let profiles = try await prepareSwitchProfiles(fixture)
+        // id_token claims: chatgpt_user_id "user-target", chatgpt_account_id "account-target".
+        let claims = "eyJodHRwczovL2FwaS5vcGVuYWkuY29tL2F1dGgiOiB7ImNoYXRncHRfdXNlcl9pZCI6ICJ1c2VyLXRhcmdldCIsICJjaGF0Z3B0X2FjY291bnRfaWQiOiAiYWNjb3VudC10YXJnZXQifX0"
+        let targetHome = await fixture.store.profileHome(id: profiles.target.id)
+        try Data(#"{"accountId":"target-id","email":"target@example.com","tokens":{"id_token":"e30.\#(claims).sig"}}"#.utf8)
+            .write(to: targetHome.appending(path: "auth.json"))
+        // SHA-256 of ["user-target","account-target"], the owner Codex Desktop computes for the target.
+        let target = "14cbb6236e89bec3ea3882eb7b04c24d778af4e671e54689502d4baa42170cf6"
+        let stateURL = fixture.activeHome.appending(path: ".codex-global-state.json")
+        try JSONSerialization.data(withJSONObject: [
+            "electron-renderer-content-owner": "previous",
+            "electron-owner-atoms:previous": ["sidebar-width": 433.5],
+            "electron-account-remote-preference:remote-connection-auto-connect-by-host-id:previous": ["devbox": true],
+            "electron-owner-value:selected-project:previous": "project-1",
+            "electron-owner-atoms:\(target)": ["stale": true],
+            "electron-owner-value:thread-writable-roots:\(target)": ["stale"],
+            "electron-owner-atoms:other": ["kept": true],
+            "remote-projects": ["shared"],
+        ] as [String: Any]).write(to: stateURL)
+
+        try await SwitchService(desktop: StoreTestDesktop(), store: fixture.store, codex: StoreTestMatchingCodex())
+            .switchAccount(to: profiles.target.id)
+
+        let state = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: stateURL)) as? [String: Any])
+        #expect(Set(state.keys) == [
+            "electron-renderer-content-owner", "electron-owner-atoms:\(target)",
+            "electron-account-remote-preference:remote-connection-auto-connect-by-host-id:\(target)",
+            "electron-owner-value:selected-project:\(target)", "electron-owner-atoms:other", "remote-projects",
+        ])
+        #expect(state["electron-renderer-content-owner"] as? String == target)
+        #expect(state["electron-owner-atoms:\(target)"] as? [String: Double] == ["sidebar-width": 433.5])
+        #expect(state["electron-account-remote-preference:remote-connection-auto-connect-by-host-id:\(target)"]
+            as? [String: Bool] == ["devbox": true])
+        #expect(state["electron-owner-value:selected-project:\(target)"] as? String == "project-1")
+        #expect(state["electron-owner-atoms:other"] as? [String: Bool] == ["kept": true])
+        #expect(state["remote-projects"] as? [String] == ["shared"])
     }
 
     @Test func persistsProfilesAndEnforcesLifecycleRules() async throws {
@@ -467,8 +508,8 @@ private struct StoreTestFailingCodex: CodexIdentityReading {
 
 private struct StoreTestMatchingCodex: CodexIdentityReading {
     func readIdentity(profileHome: URL) async throws -> AccountIdentity {
-        let fields = try JSONSerialization.jsonObject(with: Data(contentsOf: profileHome.appending(path: "auth.json"))) as! [String: String]
-        return AccountIdentity(accountID: fields["accountId"], email: fields["email"])
+        let fields = try JSONSerialization.jsonObject(with: Data(contentsOf: profileHome.appending(path: "auth.json"))) as! [String: Any]
+        return AccountIdentity(accountID: fields["accountId"] as? String, email: fields["email"] as? String)
     }
 }
 

@@ -13,7 +13,7 @@ struct SwitchServiceTests {
         #expect(await fixture.store.restoredProfileIDs().isEmpty)
     }
 
-    @Test func executesTheSixSwitchStagesInOrder() async throws {
+    @Test func executesTheSwitchStagesInOrder() async throws {
         let fixture = SwitchFixture(failure: nil)
 
         try await fixture.service.switchAccount(to: fixture.target.id)
@@ -227,6 +227,11 @@ private actor FakeStore: AccountStoring {
         await recorder.append(.commitActiveAccountID)
         if failure == .commitActiveAccountID { throw InjectedFailure(stage: .commitActiveAccountID) }
         registryActiveID = id
+    }
+
+    func shareDesktopState() async throws {
+        await recorder.append(.shareDesktopState)
+        if failure == .shareDesktopState { throw InjectedFailure(stage: .shareDesktopState) }
     }
 
     func credentialOwner() -> UUID { currentCredentialOwner }

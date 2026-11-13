@@ -166,6 +166,7 @@ public enum SwitchStage: String, CaseIterable, Sendable {
     case activateTargetCredential
     case verifyTargetIdentity
     case commitActiveAccountID
+    case shareDesktopState
     case reopenDesktop
 }
 
@@ -208,6 +209,7 @@ public enum AccountStoreError: LocalizedError, Equatable, Sendable {
     case targetCredentialMissing
     case duplicateAccount
     case cannotRemoveActiveAccount
+    case invalidDesktopState
 
     public var errorDescription: String? {
         switch self {
@@ -225,6 +227,8 @@ public enum AccountStoreError: LocalizedError, Equatable, Sendable {
             "This account is already saved. Select the existing account instead."
         case .cannotRemoveActiveAccount:
             "The active account cannot be removed."
+        case .invalidDesktopState:
+            "Codex Desktop's .codex-global-state.json is not a JSON object."
         }
     }
 }

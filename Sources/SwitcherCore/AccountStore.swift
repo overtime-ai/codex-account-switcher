@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -16,6 +19,7 @@ public protocol AccountStoring: Sendable {
     func activateTargetCredential(id: UUID) async throws
     func restoreActiveCredential(id: UUID) async throws
     func commitActiveAccountID(_ id: UUID) async throws
+    func shareDesktopState() async throws
 }
 
 public actor AccountStore: AccountStoring {
@@ -270,6 +274,53 @@ public actor AccountStore: AccountStoring {
         current.accounts[index].lastUsedAt = Date()
         try saveRegistry(current)
     }
+
+    /// Codex Desktop stores projects, SSH host preferences and sidebar state per signed-in ChatGPT account,
+    /// in keys suffixed with an owner hash, and records the account that last used them in
+    /// `electron-renderer-content-owner`. Saved accounts share one Codex home, so before Desktop next opens,
+    /// move the last owner's keys to the account in `auth.json`; Desktop then loads them as its own.
+    /// Run only while Desktop is closed. Removable when Codex Desktop stops scoping state by account.
+    public func shareDesktopState() throws {
+        #if canImport(CryptoKit)
+        let url = activeHomeURL.appending(path: ".codex-global-state.json")
+        guard fileManager.fileExists(atPath: url.path) else { return }
+        guard var state = try JSONSerialization.jsonObject(with: readChecked(url)) as? [String: Any] else {
+            throw AccountStoreError.invalidDesktopState
+        }
+        let ownerKey = "electron-renderer-content-owner"
+        guard let owner = state[ownerKey] as? String, let target = try desktopStateOwner(), owner != target else { return }
+        let prefixes = ["electron-owner-atoms:", "electron-owner-value:", "electron-account-remote-preference:"]
+        let scoped = { (key: String, suffix: String) in
+            key.hasSuffix(":" + suffix) && prefixes.contains(where: key.hasPrefix)
+        }
+        for key in state.keys where scoped(key, target) { state[key] = nil }
+        for key in state.keys where scoped(key, owner) {
+            state[String(key.dropLast(owner.count)) + target] = state.removeValue(forKey: key)
+        }
+        state[ownerKey] = target
+        try secureAtomicWrite(JSONSerialization.data(withJSONObject: state, options: .withoutEscapingSlashes), to: url)
+        #endif
+    }
+
+    #if canImport(CryptoKit)
+    /// Codex Desktop's owner hash: SHA-256 of `JSON.stringify([userId, accountId])` from the ChatGPT login.
+    private func desktopStateOwner() throws -> String? {
+        let auth = try JSONSerialization.jsonObject(with: readChecked(activeHomeURL.appending(path: "auth.json")))
+        guard let token = ((auth as? [String: Any])?["tokens"] as? [String: Any])?["id_token"] as? String else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var payload = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let claims = (try JSONSerialization.jsonObject(with: data) as? [String: Any])?["https://api.openai.com/auth"]
+                as? [String: Any],
+              let userID = claims["chatgpt_user_id"] as? String,
+              let accountID = claims["chatgpt_account_id"] as? String
+        else { return nil }
+        let key = try JSONSerialization.data(withJSONObject: [userID, accountID], options: .withoutEscapingSlashes)
+        return SHA256.hash(data: key).map { String(format: "%02x", $0) }.joined()
+    }
+    #endif
 
     private func saveRegistry(_ value: AccountRegistry) throws {
         try writeJSON(value, to: accountsURL)

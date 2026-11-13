@@ -71,6 +71,7 @@ private actor FakeStore: AccountStoring {
     func activateTargetCredential(id: UUID) async { await recorder.append(.activateTargetCredential) }
     func restoreActiveCredential(id: UUID) {}
     func commitActiveAccountID(_ id: UUID) async { await recorder.append(.commitActiveAccountID) }
+    func shareDesktopState() async { await recorder.append(.shareDesktopState) }
 }
 
 private actor FakeCodex: CodexIdentityReading {
